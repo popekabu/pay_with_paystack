@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no">
+  <meta name="generator" content="made with love by dartdoc 5.1.0-dev">
+  <meta name="description" content="pay_with_paystack API docs, for the Dart programming language.">
+  <title>pay_with_paystack - Dart API docs</title>
+
+
+  
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  
+  <link rel="stylesheet" href="static-assets/github.css?v1">
+  <link rel="stylesheet" href="static-assets/styles.css?v1">
+  <link rel="icon" href="static-assets/favicon.png?v1">
+
+  
+</head>
+
+
+<body data-base-href=""
+      data-using-base-href="false">
+
+<div id="overlay-under-drawer"></div>
+
+<header id="title">
+  <button id="sidenav-left-toggle" type="button">&nbsp;</button>
+  <ol class="breadcrumbs gt-separated dark hidden-xs">
+    <li><a href="https://github.com/popekabu">pay_with_paystack package</a></li>
+  </ol>
+  <div class="self-name">pay_with_paystack</div>
+  <form class="search navbar-right" role="search">
+    <input type="text" id="search-box" autocomplete="off" disabled class="form-control typeahead" placeholder="Loading search...">
+  </form>
+</header>
+
+<main>
+
+
+  <div id="dartdoc-main-content" class="main-content">
+      
+<section class="desc markdown">
+  <h2 id="002">0.0.2</h2>
+<h2 id="features">Features</h2>
+<p>🎉<strong>Mobile Money</strong>🎉</p>
+<p>🎉<strong>VISA</strong>🎉</p>
+<p>🎉<strong>Bank</strong>🎉</p>
+<p>🎉<strong>Bank Transfer</strong>🎉</p>
+<p>🎉<strong>USSD</strong>🎉</p>
+<p>🎉<strong>QR</strong>🎉</p>
+<p>🎉<strong>EFT</strong>🎉</p>
+<h2 id="getting-started">Getting started</h2>
+<p>Before you run, do the following in your <code>android/app/build.gradle</code></p>
+<p>Update your compileSDKVersion to 32</p>
+<pre class="language-dart"><code>android {
+    compileSdkVersion 32
+    }
+</code></pre>
+<p>Update your minSDKVersion to 19</p>
+<pre class="language-dart"><code>  defaultConfig {
+        minSdkVersion 19
+    }
+</code></pre>
+<h2 id="usage">Usage</h2>
+<p>Simply call the <code>PayWithPayStack</code> class to start making payments with paystack. As simple as that</p>
+<p>Example</p>
+<pre class="language-dart"><code> PayWithPayStack().now(
+    context: context,
+    secretKey:
+    "sk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    customerEmail: "popekabu@gmail.com",
+    reference:
+    DateTime.now().microsecondsSinceEpoch.toString(),
+    currency: "GHS",
+    paymentChannel:["mobile_money", "card""]
+    amount: "20000",
+    transactionCompleted: () {
+        print("Transaction Successful");
+    },
+    transactionNotCompleted: () {
+        print("Transaction Not Successful!");
+    });
+</code></pre>
+<h2 id="definitions">Definitions</h2>
+<p><code>context</code>
+Passed from current view</p>
+<p><code>secretKey</code>
+Provided by Paystack</p>
+<p><code>customerEmail</code>
+Email address of the user/customer trying to make payment for receipt purpose</p>
+<p><code>reference</code>
+Unique ID, usually alphanumneric and/or number, to recognise this particular transaction</p>
+<p><code>currency</code>
+Currency user/customer should be charged in</p>
+<p><code>amount</code>
+Amount or value user/customer should be charged</p>
+<p><code>paymentChannels [Optional]</code>
+Payment Channels are provided to you by Paystack and some may not be available based on your country and preferences set in your paystack dashbord. Example; <code>["card", "bank", "ussd", "qr", "mobile_money", "bank_transfer", "eft"]</code></p>
+<p><code>transactionCompleted</code>
+Execute a function when transaction is completed or is successful</p>
+<p><code>transactionNotCompleted</code>
+Execute a function when transaction is not completed or is successful</p>
+<p><code>metadata [Optional]</code>
+Extra data for development purposes. Example:</p>
+<pre class="language-dart"><code> "metadata": {
+             "custom_fields": [
+               {
+                "name": "Daniel Kabu Asare",
+                "phone": "+2330267268224"
+               }
+             ]
+           }
+</code></pre>
+<h2 id="screenshots">Screenshots</h2>
+<p><img src="https://user-images.githubusercontent.com/26738997/192014501-035de07d-1130-49b6-895c-32c3182676cf.png" width="300/"> <img src="https://user-images.githubusercontent.com/26738997/192014543-82674864-2851-4b2b-9f92-be73aa370702.png" width="300/">
+<img src="https://user-images.githubusercontent.com/26738997/192014596-0396ee68-febf-4bf9-8d74-30253c9c94fe.png" width="300/"> <img src="https://user-images.githubusercontent.com/26738997/192014634-a74376f8-7e96-4842-a133-58196f146b61.png" width="300/"></p>
+<h2 id="additional-information">Additional information</h2>
+<p>For more information and bug reports, Contact me on github <code>@popekabu</code></p>
+<h2 id="thank-you">Thank you!!</h2>
+</section>
+
+
+      <section class="summary">
+          <h2>Libraries</h2>
+        <dl>
+          <dt id="pay_with_paystack">
+  <span class="name"><a href="pay_with_paystack/pay_with_paystack-library.html">pay_with_paystack</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+        </dl>
+      </section>
+
+  </div> <!-- /.main-content -->
+
+  <div id="dartdoc-sidebar-left" class="sidebar sidebar-offcanvas-left">
+    <header id="header-search-sidebar" class="hidden-l">
+  <form class="search-sidebar" role="search">
+    <input type="text" id="search-sidebar" autocomplete="off" disabled class="form-control typeahead" placeholder="Loading search...">
+  </form>
+</header>
+
+<ol class="breadcrumbs gt-separated dark hidden-l" id="sidebar-nav">
+  <li><a href="https://github.com/popekabu">pay_with_paystack package</a></li>
+</ol>
+
+
+    <h5 class="hidden-xs"><span class="package-name">pay_with_paystack</span> <span class="package-kind">package</span></h5>
+    <ol>
+      <li class="section-title">Libraries</li>
+      <li><a href="pay_with_paystack/pay_with_paystack-library.html">pay_with_paystack</a></li>
+</ol>
+
+  </div>
+
+  <div id="dartdoc-sidebar-right" class="sidebar sidebar-offcanvas-right">
+  </div>
+
+</main>
+
+<footer>
+  <span class="no-break">
+    pay_with_paystack
+      0.0.2+1
+  </span>
+
+  
+</footer>
+
+
+
+<script src="static-assets/highlight.pack.js?v1"></script>
+<script src="static-assets/script.js?v1"></script>
+
+
+
+</body>
+
+</html>
+
