@@ -113,4 +113,7 @@ Extra data for development purposes. Example:
 
 For more information and bug reports, Contact me on github `@popekabu`
 
+## 📝 Contributing, 😞 Issues and 🐛 Bug Reports
+The project is open to public contribution. Please feel very free to contribute. Experienced an issue or want to report a bug? Please, report it <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>. Remember to be as descriptive as possible.
+
 ## Thank you!!
