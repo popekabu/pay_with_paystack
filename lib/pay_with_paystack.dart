@@ -3,36 +3,38 @@ library pay_with_paystack;
 import 'package:flutter/material.dart';
 import 'package:pay_with_paystack/src/paystack_pay_now.dart';
 
+/// Main class, use the [now] method and provide arguments like;
+/// secret [secretKey], [reference], [currency], [email], [email], [paymentChannel] and [amount].
 class PayWithPayStack {
   Future<dynamic> now({
-    ///Context provided from current view
+    /// Context provided from current view
     required BuildContext context,
 
-    ///Secret key is provided from your paystack account
+    /// Secret key is provided from your paystack account
     required String secretKey,
 
-    ///Email of the customer
+    /// Email of the customer
     required String customerEmail,
 
-    ///Alpha numeric and/or number ID to a transaction
+    /// Alpha numeric and/or number ID to a transaction
     required String reference,
 
-    ///Currency of the transaction
+    /// Currency of the transaction
     required String currency,
 
-    ///Amount you want to charge the user. Add extra two zeros after typing the amount
+    /// Amount you want to charge the user. Add extra two zeros after typing the amount
     required String amount,
 
-    ///What happens next after transaction is completed
+    /// What happens next after transaction is completed
     required VoidCallback transactionCompleted,
 
-    ///What happens next after transaction is not completed
+    /// What happens next after transaction is not completed
     required VoidCallback transactionNotCompleted,
 
-    ///Extra data not consumed by Paystack but for developer purposes
+    /// Extra data not consumed by Paystack but for developer purposes
     Object? metaData,
 
-    ///Payment Channels you want to make available to the user
+    /// Payment Channels you want to make available to the user
     Object? paymentChannel,
   }) {
     return Navigator.push(
