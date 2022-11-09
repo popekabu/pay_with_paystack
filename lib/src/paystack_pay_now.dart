@@ -97,8 +97,12 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
       /// Send data to the POJO Class if 200.
       return PaystackRequestResponse.fromJson(jsonDecode(response.body));
     } else {
-      /// Anything else means there is an issue with the credentials used.
-      throw Exception("Problem with Paystack Credentials");
+      /// Anything else means there is an issue.
+      throw Exception("Response Code: " +
+          response.statusCode.toString() +
+          ", " +
+          "Response Body" +
+          response.body.toString());
     }
   }
 
@@ -132,8 +136,12 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
         widget.transactionNotCompleted();
       }
     } else {
-      /// Anything else means there is an issue with the credentials used.
-      throw Exception("Problem with Paystack Credentials");
+      /// Anything else means there is an issue
+      throw Exception("Response Code: " +
+          response.statusCode.toString() +
+          ", " +
+          "Response Body" +
+          response.body.toString());
     }
   }
 
