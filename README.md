@@ -1,5 +1,3 @@
-## 1.0.1
-
 ## Features
 
 🎉**Mobile Money**🎉
