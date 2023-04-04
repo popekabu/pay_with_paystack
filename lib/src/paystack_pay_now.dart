@@ -98,11 +98,8 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
       return PaystackRequestResponse.fromJson(jsonDecode(response.body));
     } else {
       /// Anything else means there is an issue.
-      throw Exception("Response Code: " +
-          response.statusCode.toString() +
-          ", " +
-          "Response Body" +
-          response.body.toString());
+      throw Exception(
+          "Response Code: ${response.statusCode}, Response Body${response.body}");
     }
   }
 
@@ -130,18 +127,16 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
       /// Response code 200 means OK.
       /// Send data to the POJO Class if 200.
       var decodedRespBody = jsonDecode(response.body);
-      if (decodedRespBody["data"]["gateway_response"] == "Approved") {
+      if (decodedRespBody["data"]["gateway_response"] == "Approved" ||
+          decodedRespBody["data"]["gateway_response"] == "Successful") {
         widget.transactionCompleted();
       } else {
         widget.transactionNotCompleted();
       }
     } else {
       /// Anything else means there is an issue
-      throw Exception("Response Code: " +
-          response.statusCode.toString() +
-          ", " +
-          "Response Body" +
-          response.body.toString());
+      throw Exception(
+          "Response Code: ${response.statusCode}, Response Body${response.body}");
     }
   }
 
