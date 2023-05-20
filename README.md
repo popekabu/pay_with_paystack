@@ -49,7 +49,7 @@ Example
     reference:
     DateTime.now().microsecondsSinceEpoch.toString(),
     currency: "GHS",
-    paymentChannel:["mobile_money", "card""]
+    paymentChannel:["mobile_money", "card"],
     amount: "20000",
     transactionCompleted: () {
         print("Transaction Successful");

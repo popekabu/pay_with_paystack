@@ -33,7 +33,7 @@ class PaystackPayNow extends StatefulWidget {
 
   /// Payment Channels are the types of payment methods
   /// you want to present to the user based on what Paystack
-  /// has with your secretkey.
+  /// provides with your secretkey.
   final Object? paymentChannel;
 
   /// If transacted was completed successfully.
@@ -148,23 +148,33 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
         /// Show screen if snapshot has data and status is true.
         if (snapshot.hasData && snapshot.data!.status == true) {
           return Scaffold(
-              appBar: AppBar(
-                leading: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.black),
-                  onPressed: () {
-                    /// Check transaction status before closing the view back to the previous screen.
-                    _checkTransactionStatus(snapshot.data!.reference)
-                        .then((value) {
-                      Navigator.of(context).pop();
-                    });
-                  },
-                ),
-                backgroundColor: Colors.white,
-              ),
+              // appBar: AppBar(
+              //   leading: IconButton(
+              //     icon: const Icon(Icons.close, color: Colors.black),
+              //     onPressed: () async {
+              //       /// Check transaction status before closing the view back to the previous screen.
+              //       await _checkTransactionStatus(snapshot.data!.reference)
+              //           .then((value) {
+              //         return Navigator.of(context).pop();
+              //       });
+              //     },
+              //   ),
+              //   backgroundColor: Colors.white,
+              // ),
               body: WebView(
-                initialUrl: snapshot.data!.authUrl,
-                javascriptMode: JavascriptMode.unrestricted,
-              ));
+            initialUrl: snapshot.data!.authUrl,
+            javascriptMode: JavascriptMode.unrestricted,
+            navigationDelegate: (navigation) async {
+              if (navigation.url == 'https://standard.paystack.co/close') {
+                /// Check transaction status before closing the view back to the previous screen.
+                await _checkTransactionStatus(snapshot.data!.reference)
+                    .then((value) {
+                  return Navigator.of(context).pop();
+                });
+              }
+              return NavigationDecision.navigate;
+            },
+          ));
         } else if (snapshot.hasError) {
           return Text('${snapshot.error}');
         }
