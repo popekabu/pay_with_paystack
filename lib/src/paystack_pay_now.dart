@@ -148,33 +148,23 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
         /// Show screen if snapshot has data and status is true.
         if (snapshot.hasData && snapshot.data!.status == true) {
           return Scaffold(
-              // appBar: AppBar(
-              //   leading: IconButton(
-              //     icon: const Icon(Icons.close, color: Colors.black),
-              //     onPressed: () async {
-              //       /// Check transaction status before closing the view back to the previous screen.
-              //       await _checkTransactionStatus(snapshot.data!.reference)
-              //           .then((value) {
-              //         return Navigator.of(context).pop();
-              //       });
-              //     },
-              //   ),
-              //   backgroundColor: Colors.white,
-              // ),
-              body: SafeArea(child: WebView(
-            initialUrl: snapshot.data!.authUrl,
-            javascriptMode: JavascriptMode.unrestricted,
-            navigationDelegate: (navigation) async {
-              if (navigation.url == 'https://standard.paystack.co/close') {
-                /// Check transaction status before closing the view back to the previous screen.
-                await _checkTransactionStatus(snapshot.data!.reference)
-                    .then((value) {
-                  return Navigator.of(context).pop();
-                });
-              }
-              return NavigationDecision.navigate;
-            },
-          ));
+            body: SafeArea(
+              child: WebView(
+                initialUrl: snapshot.data!.authUrl,
+                javascriptMode: JavascriptMode.unrestricted,
+                navigationDelegate: (navigation) async {
+                  if (navigation.url == 'https://standard.paystack.co/close') {
+                    /// Check transaction status before closing the view back to the previous screen.
+                    await _checkTransactionStatus(snapshot.data!.reference)
+                        .then((value) {
+                      return Navigator.of(context).pop();
+                    });
+                  }
+                  return NavigationDecision.navigate;
+                },
+              ),
+            ),
+          );
         } else if (snapshot.hasError) {
           return Text('${snapshot.error}');
         }
