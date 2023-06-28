@@ -161,7 +161,7 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
               //   ),
               //   backgroundColor: Colors.white,
               // ),
-              body: WebView(
+              body: SafeArea(child: WebView(
             initialUrl: snapshot.data!.authUrl,
             javascriptMode: JavascriptMode.unrestricted,
             navigationDelegate: (navigation) async {
