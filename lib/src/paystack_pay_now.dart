@@ -142,14 +142,14 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<PaystackRequestResponse>(
-      future: _makePaymentRequest(),
-      builder: (context, snapshot) {
-        /// Show screen if snapshot has data and status is true.
-        if (snapshot.hasData && snapshot.data!.status == true) {
-          return Scaffold(
-            body: SafeArea(
-              child: WebView(
+    return Scaffold(
+      body: SafeArea(
+        child: FutureBuilder<PaystackRequestResponse>(
+          future: _makePaymentRequest(),
+          builder: (context, snapshot) {
+            /// Show screen if snapshot has data and status is true.
+            if (snapshot.hasData && snapshot.data!.status == true) {
+              return WebView(
                 initialUrl: snapshot.data!.authUrl,
                 javascriptMode: JavascriptMode.unrestricted,
                 navigationDelegate: (navigation) async {
@@ -162,14 +162,21 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                   }
                   return NavigationDecision.navigate;
                 },
-              ),
-            ),
-          );
-        } else if (snapshot.hasError) {
-          return Text('${snapshot.error}');
-        }
-        return const Center(child: CircularProgressIndicator());
-      },
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('${snapshot.error}'),
+              );
+            }
+
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+        ),
+      ),
     );
   }
 }
