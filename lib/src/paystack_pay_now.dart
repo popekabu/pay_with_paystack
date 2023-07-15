@@ -149,19 +149,39 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
           builder: (context, snapshot) {
             /// Show screen if snapshot has data and status is true.
             if (snapshot.hasData && snapshot.data!.status == true) {
-              return WebView(
-                initialUrl: snapshot.data!.authUrl,
-                javascriptMode: JavascriptMode.unrestricted,
-                navigationDelegate: (navigation) async {
-                  if (navigation.url == 'https://standard.paystack.co/close') {
-                    /// Check transaction status before closing the view back to the previous screen.
-                    await _checkTransactionStatus(snapshot.data!.reference)
-                        .then((value) {
-                      return Navigator.of(context).pop();
-                    });
-                  }
-                  return NavigationDecision.navigate;
-                },
+              final controller = WebViewController()
+                ..setJavaScriptMode(JavaScriptMode.unrestricted)
+                ..setUserAgent("Flutter;Webview'")
+                ..setNavigationDelegate(
+                  NavigationDelegate(
+                    onNavigationRequest: (request) async {
+                      if (request.url == 'https://standard.paystack.co/close') {
+                        /// Check transaction status before closing the view back to the previous screen.
+                        await _checkTransactionStatus(snapshot.data!.reference)
+                            .then((value) {
+                          Navigator.of(context).pop();
+                        });
+                      }
+
+                      return NavigationDecision.navigate;
+                    },
+                  ),
+                )
+                ..loadRequest(Uri.parse(snapshot.data!.authUrl));
+              return WebViewWidget(
+                controller: controller,
+                // initialUrl: snapshot.data!.authUrl,
+                // javascriptMode: JavascriptMode.unrestricted,
+                // navigationDelegate: (navigation) async {
+                //   if (navigation.url == 'https://standard.paystack.co/close') {
+                //     /// Check transaction status before closing the view back to the previous screen.
+                //     await _checkTransactionStatus(snapshot.data!.reference)
+                //         .then((value) {
+                //       return Navigator.of(context).pop();
+                //     });
+                //   }
+                //   return NavigationDecision.navigate;
+                // },
               );
             }
 
