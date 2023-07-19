@@ -16,6 +16,9 @@ class PaystackPayNow extends StatefulWidget {
   /// could be a way to check trasancation from the backend.
   final String reference;
 
+  /// Callback URL from Paystack
+  final String callbackUrl;
+
   /// Currency as at the time of publishing was either GHS or NGN
   /// PayStack is currently expanding in Africa so try using other currencies.
   final String currency;
@@ -49,6 +52,7 @@ class PaystackPayNow extends StatefulWidget {
       required this.reference,
       required this.currency,
       required this.amount,
+      required this.callbackUrl,
       required this.transactionCompleted,
       required this.transactionNotCompleted,
       this.metadata,
@@ -83,12 +87,12 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
           "channels": widget.paymentChannel
         }),
       );
-    } on Exception catch (_) {
+    } on Exception catch (e) {
       /// In the event of an exception, take the user back and show a SnackBar error.
       Navigator.pop(context);
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      var snackBar = const SnackBar(
-          content: Text("Fatal error occurred, Please check your internet"));
+      var snackBar =
+          SnackBar(content: Text("Fatal error occurred, ${e.toString()}"));
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
     }
 
@@ -135,6 +139,7 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
       }
     } else {
       /// Anything else means there is an issue
+      widget.transactionNotCompleted();
       throw Exception(
           "Response Code: ${response.statusCode}, Response Body${response.body}");
     }
@@ -146,23 +151,33 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
       body: SafeArea(
         child: FutureBuilder<PaystackRequestResponse>(
           future: _makePaymentRequest(),
-          builder: (context, snapshot) {
+          builder: (context, AsyncSnapshot<PaystackRequestResponse> snapshot) {
             /// Show screen if snapshot has data and status is true.
             if (snapshot.hasData && snapshot.data!.status == true) {
               final controller = WebViewController()
                 ..setJavaScriptMode(JavaScriptMode.unrestricted)
-                ..setUserAgent("Flutter;Webview'")
+                ..setUserAgent("Flutter;Webview")
                 ..setNavigationDelegate(
                   NavigationDelegate(
                     onNavigationRequest: (request) async {
-                      if (request.url == 'https://standard.paystack.co/close') {
-                        /// Check transaction status before closing the view back to the previous screen.
+                      if (request.url.contains('cancelurl.com')) {
                         await _checkTransactionStatus(snapshot.data!.reference)
                             .then((value) {
                           Navigator.of(context).pop();
                         });
                       }
-
+                      if (request.url.contains('paystack.co/close')) {
+                        await _checkTransactionStatus(snapshot.data!.reference)
+                            .then((value) {
+                          Navigator.of(context).pop();
+                        });
+                      }
+                      if (request.url.contains(widget.callbackUrl)) {
+                        await _checkTransactionStatus(snapshot.data!.reference)
+                            .then((value) {
+                          Navigator.of(context).pop();
+                        });
+                      }
                       return NavigationDecision.navigate;
                     },
                   ),

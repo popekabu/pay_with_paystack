@@ -1,4 +1,4 @@
-## 1.0.4
+## 1.0.5
 
 Fixes
 
@@ -8,4 +8,4 @@ Fixes
 
 -Better UI/UX
 
--Cancel button works!
+-Cancel button has bug which i believe is from paystack!

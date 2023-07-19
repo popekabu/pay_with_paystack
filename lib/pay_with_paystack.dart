@@ -19,6 +19,9 @@ class PayWithPayStack {
     /// Alpha numeric and/or number ID to a transaction
     required String reference,
 
+    /// callBack URL to handle redirection
+    required String callbackUrl,
+
     /// Currency of the transaction
     required String currency,
 
@@ -50,6 +53,7 @@ class PayWithPayStack {
                 metadata: metaData,
                 transactionCompleted: transactionCompleted,
                 transactionNotCompleted: transactionNotCompleted,
+                callbackUrl: callbackUrl,
               )),
     );
   }
