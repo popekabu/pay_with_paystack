@@ -42,13 +42,12 @@ Example
 
 ```
  PayWithPayStack().now(
-    context: context,
     secretKey:
     "sk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     customerEmail: "popekabu@gmail.com",
     reference:
     DateTime.now().microsecondsSinceEpoch.toString(),
-    callbackUrl: "google.com"
+    callbackUrl: "setup in your paystack dashboard"
     currency: "GHS",
     paymentChannel:["mobile_money", "card"],
     amount: "20000",

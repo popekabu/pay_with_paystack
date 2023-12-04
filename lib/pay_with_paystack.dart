@@ -29,10 +29,10 @@ class PayWithPayStack {
     required String amount,
 
     /// What happens next after transaction is completed
-    required VoidCallback transactionCompleted,
+    required Function? transactionCompleted,
 
     /// What happens next after transaction is not completed
-    required VoidCallback transactionNotCompleted,
+    required Function? transactionNotCompleted,
 
     /// Extra data not consumed by Paystack but for developer purposes
     Object? metaData,

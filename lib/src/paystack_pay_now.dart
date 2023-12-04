@@ -40,10 +40,10 @@ class PaystackPayNow extends StatefulWidget {
   final Object? paymentChannel;
 
   /// If transacted was completed successfully.
-  final void Function() transactionCompleted;
+  final Function? transactionCompleted;
 
   /// If transacted was not completed at all.
-  final void Function() transactionNotCompleted;
+  final Function? transactionNotCompleted;
 
   const PaystackPayNow(
       {Key? key,
@@ -89,11 +89,8 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
       );
     } on Exception catch (e) {
       /// In the event of an exception, take the user back and show a SnackBar error.
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      var snackBar =
-          SnackBar(content: Text("Fatal error occurred, ${e.toString()}"));
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      throw Exception(
+          "Response Code: ${response.statusCode}, Response Body${e.toString()}");
     }
 
     if (response.statusCode == 200) {
@@ -108,7 +105,7 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
   }
 
   /// Checks for transaction status of current transaction before view closes.
-  Future _checkTransactionStatus(String ref) async {
+  Future<bool> _checkTransactionStatusSuccessful(String ref) async {
     var response;
     try {
       /// Getting data, passing [ref] as a value to the URL that is being requested.
@@ -119,27 +116,22 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
           'Authorization': 'Bearer ${widget.secretKey}',
         },
       );
-    } on Exception catch (_) {
+    } on Exception catch (e) {
       /// In the event of an exception, take the user back and show a SnackBar error.
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      var snackBar = const SnackBar(
-          content: Text("Fatal error occurred, Please check your internet"));
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      throw Exception(
+          "Response Code: ${response.statusCode}, Response Body${e.toString()}");
     }
     if (response.statusCode == 200) {
       /// Response code 200 means OK.
-      /// Send data to the POJO Class if 200.
       var decodedRespBody = jsonDecode(response.body);
       if (decodedRespBody["data"]["gateway_response"] == "Approved" ||
           decodedRespBody["data"]["gateway_response"] == "Successful") {
-        widget.transactionCompleted();
+        return true;
       } else {
-        widget.transactionNotCompleted();
+        return false;
       }
     } else {
       /// Anything else means there is an issue
-      widget.transactionNotCompleted();
       throw Exception(
           "Response Code: ${response.statusCode}, Response Body${response.body}");
     }
@@ -161,21 +153,34 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                   NavigationDelegate(
                     onNavigationRequest: (request) async {
                       if (request.url.contains('cancelurl.com')) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
+                        await _checkTransactionStatusSuccessful(
+                                snapshot.data!.reference)
                             .then((value) {
-                          Navigator.of(context).pop();
+                          if (value == true) {
+                            widget.transactionCompleted?.call();
+                          } else {
+                            widget.transactionNotCompleted?.call();
+                          }
                         });
-                      }
-                      if (request.url.contains('paystack.co/close')) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
+                      } else if (request.url.contains('paystack.co/close')) {
+                        await _checkTransactionStatusSuccessful(
+                                snapshot.data!.reference)
                             .then((value) {
-                          Navigator.of(context).pop();
+                          if (value == true) {
+                            widget.transactionCompleted?.call();
+                          } else {
+                            widget.transactionNotCompleted?.call();
+                          }
                         });
-                      }
-                      if (request.url.contains(widget.callbackUrl)) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
+                      } else if (request.url.contains(widget.callbackUrl)) {
+                        await _checkTransactionStatusSuccessful(
+                                snapshot.data!.reference)
                             .then((value) {
-                          Navigator.of(context).pop();
+                          if (value == true) {
+                            widget.transactionCompleted?.call();
+                          } else {
+                            widget.transactionNotCompleted?.call();
+                          }
                         });
                       }
                       return NavigationDecision.navigate;
@@ -185,18 +190,6 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                 ..loadRequest(Uri.parse(snapshot.data!.authUrl));
               return WebViewWidget(
                 controller: controller,
-                // initialUrl: snapshot.data!.authUrl,
-                // javascriptMode: JavascriptMode.unrestricted,
-                // navigationDelegate: (navigation) async {
-                //   if (navigation.url == 'https://standard.paystack.co/close') {
-                //     /// Check transaction status before closing the view back to the previous screen.
-                //     await _checkTransactionStatus(snapshot.data!.reference)
-                //         .then((value) {
-                //       return Navigator.of(context).pop();
-                //     });
-                //   }
-                //   return NavigationDecision.navigate;
-                // },
               );
             }
 
