@@ -60,10 +60,6 @@ Example
 ```
 
 ## Definitions
-
-`context`
-Passed from current view
-
 `secretKey`
 Provided by Paystack
 
