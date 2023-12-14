@@ -45,6 +45,9 @@ class PaystackPayNow extends StatefulWidget {
   /// If transacted was not completed at all.
   final Function? transactionNotCompleted;
 
+  ///for sending user back
+  final BuildContext? context;
+
   const PaystackPayNow(
       {Key? key,
       required this.secretKey,
@@ -56,7 +59,8 @@ class PaystackPayNow extends StatefulWidget {
       required this.transactionCompleted,
       required this.transactionNotCompleted,
       this.metadata,
-      this.paymentChannel})
+      this.paymentChannel,
+      this.context})
       : super(key: key);
 
   @override
@@ -158,8 +162,10 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                             .then((value) {
                           if (value == true) {
                             widget.transactionCompleted?.call();
+                            Navigator.of(widget.context!).pop(); //close webview
                           } else {
                             widget.transactionNotCompleted?.call();
+                            Navigator.of(widget.context!).pop(); //close webview
                           }
                         });
                       } else if (request.url.contains('paystack.co/close')) {
@@ -168,8 +174,10 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                             .then((value) {
                           if (value == true) {
                             widget.transactionCompleted?.call();
+                            Navigator.of(context).pop(); //close webview
                           } else {
                             widget.transactionNotCompleted?.call();
+                            Navigator.of(widget.context!).pop(); //close webview
                           }
                         });
                       } else if (request.url.contains(widget.callbackUrl)) {
@@ -178,8 +186,23 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                             .then((value) {
                           if (value == true) {
                             widget.transactionCompleted?.call();
+                            Navigator.of(widget.context!).pop(); //close webview
                           } else {
                             widget.transactionNotCompleted?.call();
+                            Navigator.of(widget.context!).pop(); //close webview
+                          }
+                        });
+                      }
+                      if (request.url == "https://hello.pstk.xyz/callback") {
+                        await _checkTransactionStatusSuccessful(
+                                snapshot.data!.reference)
+                            .then((value) {
+                          if (value == true) {
+                            widget.transactionCompleted?.call();
+                            Navigator.of(widget.context!).pop(); //close webview
+                          } else {
+                            widget.transactionNotCompleted?.call();
+                            Navigator.of(widget.context!).pop(); //close webview
                           }
                         });
                       }

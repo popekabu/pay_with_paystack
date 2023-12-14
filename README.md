@@ -42,6 +42,7 @@ Example
 
 ```
  PayWithPayStack().now(
+    context: context
     secretKey:
     "sk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     customerEmail: "popekabu@gmail.com",
@@ -76,7 +77,7 @@ Currency user/customer should be charged in
 Amount or value user/customer should be charged
 
 `callbackUrl`
-URL to redirect to after payment is successful, this helps close the session. This is setup in the Dashboard of paystack and the same URL setup is then provided here by you again.
+URL to redirect to after payment is successful, this helps close the session. This is setup in the Dashboard of paystack and the same URL setup is then provided here by you again. **This is very important for successful or failed transactions**
 
 `paymentChannels [Optional]`
 Payment Channels are provided to you by Paystack and some may not be available based on your country and preferences set in your paystack dashbord. Example; `["card", "bank", "ussd", "qr", "mobile_money", "bank_transfer", "eft"]`
