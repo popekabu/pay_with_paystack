@@ -68,7 +68,7 @@ Provided by Paystack
 Email address of the user/customer trying to make payment for receipt purpose
 
 `reference`
-Unique ID, usually alphanumneric and/or number, to recognise this particular transaction
+Unique ID, usually alphanumeric and/or number, to recognise this particular transaction
 
 `currency`
 Currency user/customer should be charged in
@@ -80,7 +80,7 @@ Amount or value user/customer should be charged
 URL to redirect to after payment is successful, this helps close the session. This is setup in the Dashboard of paystack and the same URL setup is then provided here by you again. **This is very important for successful or failed transactions**
 
 `paymentChannels [Optional]`
-Payment Channels are provided to you by Paystack and some may not be available based on your country and preferences set in your paystack dashbord. Example; `["card", "bank", "ussd", "qr", "mobile_money", "bank_transfer", "eft"]`
+Payment Channels are provided to you by Paystack and some may not be available based on your country and preferences set in your paystack dashboard. Example; `["card", "bank", "ussd", "qr", "mobile_money", "bank_transfer", "eft"]`
 
 `transactionCompleted`
 Execute a function when transaction is completed or is successful
@@ -104,8 +104,8 @@ Extra data for development purposes. Example:
 
 ## Screenshots
 
-<img src="https://user-images.githubusercontent.com/26738997/192014501-035de07d-1130-49b6-895c-32c3182676cf.png" width= 300/> <img src="https://user-images.githubusercontent.com/26738997/192014543-82674864-2851-4b2b-9f92-be73aa370702.png" width= 300/>
-<img src="https://user-images.githubusercontent.com/26738997/192014596-0396ee68-febf-4bf9-8d74-30253c9c94fe.png" width= 300/> <img src="https://user-images.githubusercontent.com/26738997/192014634-a74376f8-7e96-4842-a133-58196f146b61.png" width= 300/>
+<img alt="" src="https://user-images.githubusercontent.com/26738997/192014501-035de07d-1130-49b6-895c-32c3182676cf.png" width= 300/> <img alt="" src="https://user-images.githubusercontent.com/26738997/192014543-82674864-2851-4b2b-9f92-be73aa370702.png" width= 300/>
+<img alt="" src="https://user-images.githubusercontent.com/26738997/192014596-0396ee68-febf-4bf9-8d74-30253c9c94fe.png" width= 300/> <img alt="" src="https://user-images.githubusercontent.com/26738997/192014634-a74376f8-7e96-4842-a133-58196f146b61.png" width= 300/>
 
 ## Additional information
 

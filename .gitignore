@@ -45,3 +45,4 @@ app.*.map.json
 
 # hide private configs from the app
 *.private.env.json
+/.idea/
