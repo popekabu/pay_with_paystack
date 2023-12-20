@@ -1,5 +1,6 @@
 ## Features
 
+
 🎉**Mobile Money**🎉
 
 🎉**VISA**🎉
@@ -18,7 +19,7 @@
 
 Before you run, do the following in your `android/app/build.gradle`
 
-Update your compileSDKVersion to 32
+Update your compileSDKVersion to latest
 
 ```
 android {
@@ -61,6 +62,10 @@ Example
 ```
 
 ## Definitions
+
+`context`
+To aid in routing to screens 
+
 `secretKey`
 Provided by Paystack
 
@@ -116,3 +121,4 @@ For more information and bug reports, Contact me on github `@popekabu`
 The project is open to public contribution. Please feel very free to contribute. Experienced an issue or want to report a bug? Please, report it <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>. Remember to be as descriptive as possible.
 
 ## Thank you!!
+Add the dependency to your Project here <https://pub.dev/packages/pay_with_paystack>
