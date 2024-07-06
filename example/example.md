@@ -42,13 +42,15 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             TextButton(
                 onPressed: () {
+                  final uniqueTransRef = PayWithPayStack().generateUuidV4();
+
                   PayWithPayStack().now(
                       context: context,
                       secretKey:
                           "sk_live_XXXXXXXXXXXXXXXXXXX",
                       customerEmail: "popekabu@gmail.com",
                       reference:
-                          DateTime.now().microsecondsSinceEpoch.toString(),
+                          uniqueTransRef,
                       currency: "GHS",
                       amount: "20000",
                       transactionCompleted: () {

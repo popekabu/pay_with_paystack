@@ -1,4 +1,4 @@
-// ignore_for_file: prefer_typing_uninitialized_variables
+// ignore_for_file: prefer_typing_uninitialized_variables, use_build_context_synchronously
 
 import 'dart:convert';
 
@@ -12,7 +12,7 @@ class PaystackPayNow extends StatefulWidget {
   final String callbackUrl;
   final String currency;
   final String email;
-  final String amount;
+  final double amount;
   final String? plan;
   final metadata;
   final paymentChannel;
@@ -42,6 +42,8 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
   /// Makes HTTP Request to Paystack for access to make payment.
   Future<PaystackRequestResponse> _makePaymentRequest() async {
     http.Response? response;
+    final amount = widget.amount * 100;
+
     try {
       /// Sending Data to paystack.
       response = await http.post(
@@ -55,7 +57,7 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
         /// Data to send to the URL.
         body: jsonEncode({
           "email": widget.email,
-          "amount": widget.amount,
+          "amount": amount.toString(),
           "reference": widget.reference,
           "currency": widget.currency,
           "plan": widget.plan,

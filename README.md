@@ -1,6 +1,5 @@
 ## Features
 
-
 🎉**Mobile Money**🎉
 
 🎉**VISA**🎉
@@ -37,22 +36,23 @@ Update your minSDKVersion to 19
 
 ## Usage
 
-Simply call the `PayWithPayStack` class to start making payments with paystack. As simple as that
+Simply call the `PayWithPayStack` class to start making payments with paystack. As simple as that. Please note that for reference its important you use a unique id. I recommend uuid. I have added it as part of the package. Please see example below to see how it is used.
 
 Example
 
 ```
+ final uniqueTransRef = PayWithPayStack().generateUuidV4()
+ 
  PayWithPayStack().now(
     context: context
     secretKey:
     "sk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    customerEmail: "popekabu@gmail.com",
-    reference:
-    DateTime.now().microsecondsSinceEpoch.toString(),
+    customerEmail: "your@email.com",
+    reference:uniqueTransRef, 
     callbackUrl: "setup in your paystack dashboard"
     currency: "GHS",
     paymentChannel:["mobile_money", "card"],
-    amount: "20000",
+    amount: 2000,
     transactionCompleted: () {
         print("Transaction Successful");
     },
@@ -73,13 +73,13 @@ Provided by Paystack
 Email address of the user/customer trying to make payment for receipt purpose
 
 `reference`
-Unique ID, usually alphanumeric and/or number, to recognise this particular transaction
+Unique ID to recognise this transaction in your paystack dashboard. I've added uuidv4 to help with that. Kindly see the example in the readme. Alternatively you can create your own unique id.
 
 `currency`
 Currency user/customer should be charged in
 
 `amount`
-Amount or value user/customer should be charged
+Amount or value user/customer should be charged.
 
 `callbackUrl`
 URL to redirect to after payment is successful, this helps close the session. This is setup in the Dashboard of paystack and the same URL setup is then provided here by you again. **This is very important for successful or failed transactions**
@@ -120,5 +120,5 @@ For more information and bug reports, Contact me on github `@popekabu`
 
 The project is open to public contribution. Please feel very free to contribute. Experienced an issue or want to report a bug? Please, report it <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>. Remember to be as descriptive as possible.
 
-## Thank you!!
-Add the dependency to your Project here <https://pub.dev/packages/pay_with_paystack>
+## Support my Work 🙏🏽
+Buy me coffee <a href="https://buymeacoffee.com/popekabu">here</a>. Thank you!

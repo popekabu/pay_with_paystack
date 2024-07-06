@@ -2,10 +2,16 @@ library pay_with_paystack;
 
 import 'package:flutter/material.dart';
 import 'package:pay_with_paystack/src/paystack_pay_now.dart';
+import 'package:uuid/uuid.dart';
 
 /// Main class, use the [now] method and provide arguments like;
 /// secret [secretKey], [reference], [currency], [email], [email], [paymentChannel] and [amount].
 class PayWithPayStack {
+  String generateUuidV4() {
+    var uuid = const Uuid();
+    return uuid.v4();
+  }
+
   Future<dynamic> now({
     /// Context provided from current view
     required BuildContext context,
@@ -25,8 +31,8 @@ class PayWithPayStack {
     /// Currency of the transaction
     required String currency,
 
-    /// Amount you want to charge the user. Add extra two zeros after typing the amount
-    required String amount,
+    /// Amount you want to charge the user
+    required double amount,
 
     /// What happens next after transaction is completed
     required Function() transactionCompleted,
