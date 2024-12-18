@@ -17,7 +17,7 @@ class PaystackPayNow extends StatefulWidget {
   final metadata;
   final paymentChannel;
   final void Function() transactionCompleted;
-  final void Function() transactionNotCompleted;
+  final void Function(String reason) transactionNotCompleted;
 
   const PaystackPayNow({
     Key? key,
@@ -109,15 +109,15 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
     }
     if (response!.statusCode == 200) {
       var decodedRespBody = jsonDecode(response.body);
-      if (decodedRespBody["data"]["gateway_response"] == "Approved" ||
-          decodedRespBody["data"]["gateway_response"] == "Successful") {
+      print(decodedRespBody.toString());
+      if (decodedRespBody["data"]["status"] == "success") {
         widget.transactionCompleted();
       } else {
-        widget.transactionNotCompleted();
+        widget.transactionNotCompleted(
+            decodedRespBody["data"]["status"].toString());
       }
     } else {
       /// Anything else means there is an issue
-      widget.transactionNotCompleted();
       throw Exception(
           "Response Code: ${response.statusCode}, Response Body${response.body}");
     }
@@ -125,32 +125,43 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: FutureBuilder<PaystackRequestResponse>(
+    return PopScope(
+      canPop: false, // Prevent back gesture
+      child: FutureBuilder<PaystackRequestResponse>(
           future: _makePaymentRequest(),
-          builder: (context, AsyncSnapshot<PaystackRequestResponse> snapshot) {
-            /// Show screen if snapshot has data and status is true.
+          builder: (context, snapshot) {
             if (snapshot.hasData && snapshot.data!.status == true) {
               final controller = WebViewController()
                 ..setJavaScriptMode(JavaScriptMode.unrestricted)
-                ..setUserAgent("Flutter;Webview")
+                // ..setUserAgent("Flutter;Webview")
                 ..setNavigationDelegate(
                   NavigationDelegate(
                     onNavigationRequest: (request) async {
-                      if (request.url.contains('cancelurl.com')) {
+                      if (request.url
+                          .contains(' https://your-cancel-url.com')) {
                         await _checkTransactionStatus(snapshot.data!.reference)
                             .then((value) {
                           Navigator.of(context).pop();
                         });
-                      }
-                      if (request.url.contains('paystack.co/close')) {
+                      } else if (request.url
+                          .contains('https://cancelurl.com')) {
                         await _checkTransactionStatus(snapshot.data!.reference)
                             .then((value) {
                           Navigator.of(context).pop();
                         });
-                      }
-                      if (request.url.contains(widget.callbackUrl)) {
+                      } else if (request.url
+                          .contains('https://standard.paystack.co/close')) {
+                        await _checkTransactionStatus(snapshot.data!.reference)
+                            .then((value) {
+                          Navigator.of(context).pop();
+                        });
+                      } else if (request.url
+                          .contains('https://paystack.co/close')) {
+                        await _checkTransactionStatus(snapshot.data!.reference)
+                            .then((value) {
+                          Navigator.of(context).pop();
+                        });
+                      } else if (request.url.contains(widget.callbackUrl)) {
                         await _checkTransactionStatus(snapshot.data!.reference)
                             .then((value) {
                           Navigator.of(context).pop();
@@ -161,20 +172,24 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                   ),
                 )
                 ..loadRequest(Uri.parse(snapshot.data!.authUrl));
-              return WebViewWidget(
-                controller: controller,
-                // initialUrl: snapshot.data!.authUrl,
-                // javascriptMode: JavascriptMode.unrestricted,
-                // navigationDelegate: (navigation) async {
-                //   if (navigation.url == 'https://standard.paystack.co/close') {
-                //     /// Check transaction status before closing the view back to the previous screen.
-                //     await _checkTransactionStatus(snapshot.data!.reference)
-                //         .then((value) {
-                //       return Navigator.of(context).pop();
-                //     });
-                //   }
-                //   return NavigationDecision.navigate;
-                // },
+              return Scaffold(
+                appBar: AppBar(
+                  automaticallyImplyLeading: false,
+                  actions: [
+                    InkWell(
+                        onTap: () async {
+                          await _checkTransactionStatus(
+                                  snapshot.data!.reference)
+                              .then((value) {
+                            Navigator.of(context).pop();
+                          });
+                        },
+                        child: const Icon(Icons.close)),
+                  ],
+                ),
+                body: WebViewWidget(
+                  controller: controller,
+                ),
               );
             }
 
@@ -186,12 +201,12 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
               );
             }
 
-            return const Center(
-              child: CircularProgressIndicator(),
+            return const Material(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
             );
-          },
-        ),
-      ),
+          }),
     );
   }
 }

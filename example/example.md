@@ -46,18 +46,17 @@ class _MyHomePageState extends State<MyHomePage> {
 
                   PayWithPayStack().now(
                       context: context,
-                      secretKey:
-                          "sk_live_XXXXXXXXXXXXXXXXXXX",
+                      secretKey:"sk_live_XXXXXXXXXXXXXXXXXXXXX",
                       customerEmail: "popekabu@gmail.com",
-                      reference:
-                          uniqueTransRef,
+                      reference: uniqueTransRef,
                       currency: "GHS",
-                      amount: "20000",
+                      amount: 20000,
+                      callbackUrl: "https://google.com",
                       transactionCompleted: () {
-                        print("Transaction Successful");
+                        debugPrint("==> Transaction Successful");
                       },
-                      transactionNotCompleted: () {
-                        print("Transaction Not Successful!");
+                      transactionNotCompleted: (reason) {
+                        debugPrint("==> Transaction failed reason $reason");
                       });
                 },
                 child: const Text(

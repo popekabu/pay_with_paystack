@@ -43,22 +43,23 @@ Example
 ```
  final uniqueTransRef = PayWithPayStack().generateUuidV4()
  
- PayWithPayStack().now(
-    context: context
+ final uniqueTransRef = PayWithPayStack().generateUuidV4();
+
+PayWithPayStack().now(
+    context: context,
     secretKey:
-    "sk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    customerEmail: "your@email.com",
-    reference:uniqueTransRef, 
-    callbackUrl: "setup in your paystack dashboard"
+        "sk_live_XXXXXXXXXXXXXXXXXXXXX",
+    customerEmail: "popekabu@gmail.com",
+    reference: uniqueTransRef,
     currency: "GHS",
-    paymentChannel:["mobile_money", "card"],
-    amount: 2000,
+    amount: 20000,
+    callbackUrl: "https://google.com",
     transactionCompleted: () {
-        print("Transaction Successful");
+      debugPrint("==> Transaction Successful");
     },
-    transactionNotCompleted: () {
-        print("Transaction Not Successful!");
-    });
+    transactionNotCompleted: (reason) {
+      debugPrint("==> Transaction failed reason $reason");
+});
 ```
 
 ## Definitions
@@ -91,7 +92,7 @@ Payment Channels are provided to you by Paystack and some may not be available b
 Execute a function when transaction is completed or is successful
 
 `transactionNotCompleted`
-Execute a function when transaction is not completed or is successful
+Execute a function when transaction is not completed or is successful. This function returns a string of transaction status if only transaction is not successful.
 
 `metadata [Optional]`
 Extra data for development purposes. Example:

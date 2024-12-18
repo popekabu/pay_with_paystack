@@ -38,7 +38,7 @@ class PayWithPayStack {
     required Function() transactionCompleted,
 
     /// What happens next after transaction is not completed
-    required Function() transactionNotCompleted,
+    required Function(String) transactionNotCompleted,
 
     /// Extra data not consumed by Paystack but for developer purposes
     Object? metaData,

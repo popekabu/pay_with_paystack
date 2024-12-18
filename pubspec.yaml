@@ -1,6 +1,6 @@
 name: pay_with_paystack
 description: Flutter Plugin that enable users make Paystack payment with either Mobile Money or Card on the fly provided you use the secret key provided to you from Paystack
-version: 1.0.10
+version: 1.0.11
 homepage: https://github.com/popekabu
 
 environment:
