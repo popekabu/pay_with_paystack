@@ -35,7 +35,7 @@ class PayWithPayStack {
     required double amount,
 
     /// What happens next after transaction is completed
-    required Function() transactionCompleted,
+    required Function(PaymentData data) transactionCompleted,
 
     /// What happens next after transaction is not completed
     required Function(String) transactionNotCompleted,
