@@ -12,7 +12,7 @@ class PayWithPayStack {
     return uuid.v4();
   }
 
-  Future<dynamic> now({
+  Future<PaymentData?> now({
     /// Context provided from current view
     required BuildContext context,
 
