@@ -1,4 +1,6 @@
 ```
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:pay_with_paystack/pay_with_paystack.dart';
 
@@ -41,19 +43,21 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextButton(
-                onPressed: () {
+                onPressed: () async {
                   final uniqueTransRef = PayWithPayStack().generateUuidV4();
 
-                  PayWithPayStack().now(
+                  await PayWithPayStack().now(
                       context: context,
-                      secretKey:"sk_live_XXXXXXXXXXXXXXXXXXXXX",
+                      secretKey:
+                          "sk_live_XXXXXXXXXXXXXXXXXXXXX",
                       customerEmail: "popekabu@gmail.com",
                       reference: uniqueTransRef,
                       currency: "GHS",
                       amount: 20000,
                       callbackUrl: "https://google.com",
-                      transactionCompleted: () {
-                        debugPrint("==> Transaction Successful");
+                      transactionCompleted: (data) {
+                        // debugPrint("==> Transaction Successful");
+                        log(data.toJson().toString());
                       },
                       transactionNotCompleted: (reason) {
                         debugPrint("==> Transaction failed reason $reason");
@@ -69,4 +73,5 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
 ```
