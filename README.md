@@ -40,9 +40,7 @@ Simply call the `PayWithPayStack` class to start making payments with paystack. 
 
 Example
 
-```
- final uniqueTransRef = PayWithPayStack().generateUuidV4()
- 
+``` 
  final uniqueTransRef = PayWithPayStack().generateUuidV4();
 
 PayWithPayStack().now(
