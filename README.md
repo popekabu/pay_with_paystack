@@ -54,8 +54,8 @@ PayWithPayStack().now(
     currency: "GHS",
     amount: 20000,
     callbackUrl: "https://google.com",
-    transactionCompleted: () {
-      debugPrint("==> Transaction Successful");
+    transactionCompleted: (paymentData) {
+      debugPrint(paymentData.toString());
     },
     transactionNotCompleted: (reason) {
       debugPrint("==> Transaction failed reason $reason");
@@ -89,7 +89,7 @@ URL to redirect to after payment is successful, this helps close the session. Th
 Payment Channels are provided to you by Paystack and some may not be available based on your country and preferences set in your paystack dashboard. Example; `["card", "bank", "ussd", "qr", "mobile_money", "bank_transfer", "eft"]`
 
 `transactionCompleted`
-Execute a function when transaction is completed or is successful
+Returns a Payment Data object and executes a function when transaction is completed or is successful.
 
 `transactionNotCompleted`
 Execute a function when transaction is not completed or is successful. This function returns a string of transaction status if only transaction is not successful.
@@ -117,9 +117,19 @@ Extra data for development purposes. Example:
 
 For more information and bug reports, Contact me on github `@popekabu`
 
-## 📝 Contributing, 😞 Issues and 🐛 Bug Reports
+## 📝 Contributors  
+A big thank you to the following contributors for their support and contributions:
 
-The project is open to public contribution. Please feel very free to contribute. Experienced an issue or want to report a bug? Please, report it <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>. Remember to be as descriptive as possible.
+- @joelarmah  
+- @pat64j  
+- @keezysilencer  
+- @Princewil  
+- @richprince23  
 
-## Support my Work 🙏🏽
-Buy me coffee <a href="https://buymeacoffee.com/popekabu">here</a>. Thank you!
+Feel free to contribute to the project — it’s open to the public!
+
+## 📝 Contributing, 😞 Issues, and 🐛 Bug Reports  
+This project is open to public contributions. If you encounter any issues or want to report a bug, please submit a detailed report <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>.
+
+## Support my Work 🙏🏽  
+Buy me a coffee: <a href="https://buymeacoffee.com/popekabu">here</a>. Thank you for your support!

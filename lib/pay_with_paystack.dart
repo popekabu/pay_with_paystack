@@ -1,6 +1,7 @@
 library pay_with_paystack;
 
 import 'package:flutter/material.dart';
+import 'package:pay_with_paystack/model/payment_data.dart';
 import 'package:pay_with_paystack/src/paystack_pay_now.dart';
 import 'package:uuid/uuid.dart';
 

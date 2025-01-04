@@ -52,8 +52,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       currency: "GHS",
                       amount: 20000,
                       callbackUrl: "https://google.com",
-                      transactionCompleted: () {
-                        debugPrint("==> Transaction Successful");
+                      transactionCompleted: (paymentData) {
+                          debugPrint(paymentData.toString());
                       },
                       transactionNotCompleted: (reason) {
                         debugPrint("==> Transaction failed reason $reason");
