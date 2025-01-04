@@ -16,7 +16,7 @@ class PaystackPayNow extends StatefulWidget {
   final String? plan;
   final metadata;
   final paymentChannel;
-  final void Function() transactionCompleted;
+  final void Function(PaymentData data) transactionCompleted;
   final void Function(String reason) transactionNotCompleted;
 
   const PaystackPayNow({
@@ -109,9 +109,10 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
     }
     if (response!.statusCode == 200) {
       var decodedRespBody = jsonDecode(response.body);
-      print(decodedRespBody.toString());
+      // print(decodedRespBody.toString());
       if (decodedRespBody["data"]["status"] == "success") {
-        widget.transactionCompleted();
+        final data = PaymentData.fromJson(decodedRespBody["data"]);
+        widget.transactionCompleted(data);
       } else {
         widget.transactionNotCompleted(
             decodedRespBody["data"]["status"].toString());
@@ -215,15 +216,211 @@ class PaystackRequestResponse {
   final bool status;
   final String authUrl;
   final String reference;
+  // final PaymentData? data;
 
-  const PaystackRequestResponse(
-      {required this.authUrl, required this.status, required this.reference});
+  const PaystackRequestResponse({
+    required this.authUrl,
+    required this.status,
+    required this.reference,
+    // this.data,
+  });
 
   factory PaystackRequestResponse.fromJson(Map<String, dynamic> json) {
     return PaystackRequestResponse(
       status: json['status'],
       authUrl: json['data']["authorization_url"],
       reference: json['data']["reference"],
+      // data: json['data'] != null ? PaymentData.fromJson(json["data"]) : null,
     );
+  }
+
+  ///asas
+}
+
+// Added PaymentData model
+
+/// PaymentData from Paystack API response
+class PaymentData {
+  final int? id;
+  final String? domain;
+  final String? status;
+  final String? reference;
+  final String? receiptNumber;
+  final int? amount;
+  final String? message;
+  final String? gatewayResponse;
+  final String? paidAt;
+  final String? createdAt;
+  final String? channel;
+  final String? currency;
+  final String? ipAddress;
+  final int? fees;
+  final dynamic feesSplit;
+  final Authorization? authorization;
+  final Customer? customer;
+
+  PaymentData({
+    this.id,
+    this.domain,
+    this.status,
+    this.reference,
+    this.receiptNumber,
+    this.amount,
+    this.message,
+    this.gatewayResponse,
+    this.paidAt,
+    this.createdAt,
+    this.channel,
+    this.currency,
+    this.ipAddress,
+    this.fees,
+    this.feesSplit,
+    this.authorization,
+    this.customer,
+  });
+
+  factory PaymentData.fromJson(Map<String, dynamic> json) {
+    return PaymentData(
+      id: json['id'] is String ? int.tryParse(json['id']) : json['id'],
+      domain: json['domain']?.toString(),
+      status: json['status']?.toString(),
+      reference: json['reference']?.toString(),
+      receiptNumber: json['receipt_number']?.toString(),
+      amount: json['amount'] is String
+          ? int.tryParse(json['amount'])
+          : json['amount'],
+      message: json['message']?.toString(),
+      gatewayResponse: json['gateway_response']?.toString(),
+      paidAt: json['paid_at']?.toString(),
+      createdAt: json['created_at']?.toString(),
+      channel: json['channel']?.toString(),
+      currency: json['currency']?.toString(),
+      ipAddress: json['ip_address']?.toString(),
+      fees: json['fees'] is String ? int.tryParse(json['fees']) : json['fees'],
+      feesSplit: json['fees_split'],
+      authorization: json['authorization'] != null
+          ? Authorization.fromJson(json['authorization'])
+          : null,
+      customer:
+          json['customer'] != null ? Customer.fromJson(json['customer']) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'domain': domain,
+      'status': status,
+      'reference': reference,
+      'receipt_number': receiptNumber,
+      'amount': amount,
+      'message': message,
+      'gateway_response': gatewayResponse,
+      'paid_at': paidAt,
+      'created_at': createdAt,
+      'channel': channel,
+      'currency': currency,
+      'ip_address': ipAddress,
+      'fees': fees,
+      'fees_split': feesSplit,
+      'authorization': authorization?.toJson(),
+      'customer': customer?.toJson(),
+    };
+  }
+}
+
+class Authorization {
+  final String? authorizationCode;
+  final String? bin;
+  final String? last4;
+  final String? channel;
+  final String? cardType;
+  final String? bank;
+  final String? countryCode;
+  final String? brand;
+  final String? accountName;
+  final String? mobileMoneyNumber;
+
+  Authorization({
+    this.authorizationCode,
+    this.bin,
+    this.last4,
+    this.channel,
+    this.cardType,
+    this.bank,
+    this.countryCode,
+    this.brand,
+    this.accountName,
+    this.mobileMoneyNumber,
+  });
+
+  factory Authorization.fromJson(Map<String, dynamic> json) {
+    return Authorization(
+      authorizationCode: json['authorization_code']?.toString(),
+      bin: json['bin']?.toString(),
+      last4: json['last4']?.toString(),
+      channel: json['channel']?.toString(),
+      cardType: json['card_type']?.toString(),
+      bank: json['bank']?.toString(),
+      countryCode: json['country_code']?.toString(),
+      brand: json['brand']?.toString(),
+      accountName: json['account_name']?.toString(),
+      mobileMoneyNumber: json['mobile_money_number']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'authorization_code': authorizationCode,
+      'bin': bin,
+      'last4': last4,
+      'channel': channel,
+      'card_type': cardType,
+      'bank': bank,
+      'country_code': countryCode,
+      'brand': brand,
+      'account_name': accountName,
+      'mobile_money_number': mobileMoneyNumber,
+    };
+  }
+}
+
+class Customer {
+  final int? id;
+  final String? firstName;
+  final String? lastName;
+  final String? email;
+  final String? customerCode;
+  final String? phone;
+
+  Customer({
+    this.id,
+    this.firstName,
+    this.lastName,
+    this.email,
+    this.customerCode,
+    this.phone,
+  });
+
+  factory Customer.fromJson(Map<String, dynamic> json) {
+    return Customer(
+      id: json['id'] is String ? int.tryParse(json['id']) : json['id'],
+      firstName: json['first_name']?.toString(),
+      lastName: json['last_name']?.toString(),
+      email: json['email']?.toString(),
+      customerCode: json['customer_code']?.toString(),
+      phone: json['phone']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'first_name': firstName,
+      'last_name': lastName,
+      'email': email,
+      'customer_code': customerCode,
+      'phone': phone,
+    };
   }
 }
