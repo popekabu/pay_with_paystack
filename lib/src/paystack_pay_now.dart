@@ -165,45 +165,32 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                 ..setNavigationDelegate(
                   NavigationDelegate(
                     onNavigationRequest: (request) async {
-                      if (request.url
-                          .contains(' https://your-cancel-url.com')) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
-                            .then((value) {
-                          Navigator.of(context).pop();
-                        });
-                      } else if (request.url
-                          .contains('https://cancelurl.com')) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
-                            .then((value) {
-                          Navigator.of(context).pop();
-                        });
-                      } else if (request.url
-                          .contains('https://standard.paystack.co/close')) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
-                            .then((value) {
-                          Navigator.of(context).pop();
-                        });
-                      } else if (request.url
-                          .contains('https://paystack.co/close')) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
-                            .then((value) {
-                          Navigator.of(context).pop();
-                        });
-                      } else if (request.url.contains(widget.callbackUrl)) {
-                        await _checkTransactionStatus(snapshot.data!.reference)
-                            .then((value) {
-                          Navigator.of(context).pop();
-                        });
-                        //this is responsible for canceling the payment
-                      } else if (request.url.contains(
-                          'https://github.com/popekabu/pay_with_paystack')) {
-                        //we can go ahead to check transaction status first
-                        // before canceling the payment and taking the user back
-                        await _checkTransactionStatus(snapshot.data!.reference)
-                            .then((value) {
-                          Navigator.of(context).pop();
-                        });
+                      final url = request.url;
+
+                      switch (url) {
+                        case 'https://your-cancel-url.com':
+                        case 'https://cancelurl.com':
+                        case 'https://standard.paystack.co/close':
+                        case 'https://paystack.co/close':
+                        case 'https://github.com/popekabu/pay_with_paystack':
+                          await _checkTransactionStatus(
+                                  snapshot.data!.reference)
+                              .then((value) {
+                            Navigator.of(context).pop();
+                          });
+                          break;
+
+                        default:
+                          if (url.contains(widget.callbackUrl)) {
+                            await _checkTransactionStatus(
+                                    snapshot.data!.reference)
+                                .then((value) {
+                              Navigator.of(context).pop();
+                            });
+                          }
+                          break;
                       }
+
                       return NavigationDecision.navigate;
                     },
                   ),

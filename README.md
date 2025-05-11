@@ -118,11 +118,12 @@ For more information and bug reports, Contact me on github `@popekabu`
 ## 📝 Contributors  
 A big thank you to the following contributors for their support and contributions:
 
-- @joelarmah  
-- @pat64j  
-- @keezysilencer  
-- @Princewil  
-- @richprince23  
+- @joelarmah 
+- @pat64j 
+- @keezysilencer 
+- @Princewil 
+- @richprince23 
+- @VhiktorBrown 
 
 Feel free to contribute to the project — it’s open to the public!
 
@@ -130,4 +131,4 @@ Feel free to contribute to the project — it’s open to the public!
 This project is open to public contributions. If you encounter any issues or want to report a bug, please submit a detailed report <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>.
 
 ## Support my Work 🙏🏽  
-Buy me a coffee: <a href="https://buymeacoffee.com/popekabu">here</a>. Thank you for your support!
+Buy me a coffee: <a href="https://buymeacoffee.com/popekabu">here</a>. Thank you for your support! 
