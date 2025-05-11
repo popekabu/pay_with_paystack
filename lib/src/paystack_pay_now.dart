@@ -47,6 +47,31 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
     final amount = widget.amount * 100;
 
     try {
+      // We'll create a modified metadata object with cancel_action.
+      // This implementation below allows the user to be able to Cancel Payment
+      // directly from the Paystack Webview.
+      Map<String, dynamic> enrichedMetadata;
+
+      // Here, we check if metadata is already a Map,
+      // we create one if it's null, or convert if needed
+      if (widget.metadata == null) {
+        enrichedMetadata = {
+          "cancel_action": "https://github.com/popekabu/pay_with_paystack"
+        };
+      } else if (widget.metadata is Map) {
+        // We clone the existing metadata and add the new field
+        enrichedMetadata = Map<String, dynamic>.from(widget.metadata);
+        enrichedMetadata["cancel_action"] =
+            "https://github.com/popekabu/pay_with_paystack";
+      } else {
+        // If metadata is not a Map, convert it to a string representation
+        // and include it as part of the metadata
+        enrichedMetadata = {
+          "data": widget.metadata.toString(),
+          "cancel_action": "https://github.com/popekabu/pay_with_paystack"
+        };
+      }
+
       /// Sending Data to paystack.
       response = await http.post(
         /// Url to send data to
@@ -56,14 +81,14 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
           'Authorization': 'Bearer ${widget.secretKey}',
         },
 
-        /// Data to send to the URL.
+        /// Data to send to the URL with enriched metadata(with cancel_action).
         body: jsonEncode({
           "email": widget.email,
           "amount": amount.toString(),
           "reference": widget.reference,
           "currency": widget.currency,
           "plan": widget.plan,
-          "metadata": widget.metadata,
+          "metadata": enrichedMetadata, // We use the enriched metadata here
           "callback_url": widget.callbackUrl,
           "channels": widget.paymentChannel
         }),
@@ -169,6 +194,15 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
                             .then((value) {
                           Navigator.of(context).pop();
                         });
+                        //this is responsible for canceling the payment
+                      } else if (request.url.contains(
+                          'https://github.com/popekabu/pay_with_paystack')) {
+                        //we can go ahead to check transaction status first
+                        // before canceling the payment and taking the user back
+                        await _checkTransactionStatus(snapshot.data!.reference)
+                            .then((value) {
+                          Navigator.of(context).pop();
+                        });
                       }
                       return NavigationDecision.navigate;
                     },
@@ -178,6 +212,7 @@ class _PaystackPayNowState extends State<PaystackPayNow> {
               return Scaffold(
                 appBar: AppBar(
                   automaticallyImplyLeading: false,
+                  //TODO -> Now that the Cancel Payment works, you can remove this cancel icon.
                   actions: [
                     InkWell(
                         onTap: () async {
