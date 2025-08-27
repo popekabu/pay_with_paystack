@@ -42,20 +42,21 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             TextButton(
                 onPressed: () {
+                  final uniqueTransRef = PayWithPayStack().generateUuidV4();
+
                   PayWithPayStack().now(
                       context: context,
-                      secretKey:
-                          "sk_live_XXXXXXXXXXXXXXXXXXX",
+                      secretKey:"sk_live_XXXXXXXXXXXXXXXXXXXXX",
                       customerEmail: "popekabu@gmail.com",
-                      reference:
-                          DateTime.now().microsecondsSinceEpoch.toString(),
+                      reference: uniqueTransRef,
                       currency: "GHS",
-                      amount: "20000",
-                      transactionCompleted: () {
-                        print("Transaction Successful");
+                      amount: 20000,
+                      callbackUrl: "https://google.com",
+                      transactionCompleted: (paymentData) {
+                          debugPrint(paymentData.toString());
                       },
-                      transactionNotCompleted: () {
-                        print("Transaction Not Successful!");
+                      transactionNotCompleted: (reason) {
+                        debugPrint("==> Transaction failed reason $reason");
                       });
                 },
                 child: const Text(
