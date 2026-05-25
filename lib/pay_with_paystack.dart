@@ -2,22 +2,26 @@ library pay_with_paystack;
 
 import 'package:flutter/material.dart';
 import 'package:pay_with_paystack/model/payment_data.dart';
+import 'package:pay_with_paystack/model/paystack_bearer.dart';
 import 'package:pay_with_paystack/model/paystack_channel.dart';
+import 'package:pay_with_paystack/model/paystack_metadata.dart';
 import 'package:pay_with_paystack/src/paystack_pay_now.dart';
 import 'package:uuid/uuid.dart';
 
 export 'package:pay_with_paystack/model/authorization.dart';
 export 'package:pay_with_paystack/model/customer.dart';
 export 'package:pay_with_paystack/model/payment_data.dart';
+export 'package:pay_with_paystack/model/paystack_bearer.dart';
 export 'package:pay_with_paystack/model/paystack_channel.dart';
 export 'package:pay_with_paystack/model/paystack_exception.dart';
+export 'package:pay_with_paystack/model/paystack_metadata.dart';
 
 /// Entry point for the `pay_with_paystack` plugin.
 ///
 /// Call [now] to launch the Paystack checkout WebView. Use [generateUuidV4]
 /// to generate a unique transaction reference.
 ///
-/// ## Example
+/// ## Basic example
 /// ```dart
 /// await PayWithPayStack().now(
 ///   context: context,
@@ -27,7 +31,6 @@ export 'package:pay_with_paystack/model/paystack_exception.dart';
 ///   currency: 'GHS',
 ///   amount: 50.00,
 ///   callbackUrl: 'https://your-callback.com',
-///   channels: [PaystackChannel.card, PaystackChannel.mobileMoney],
 ///   transactionCompleted: (data) => print('Paid: ${data.amountInMajorUnit}'),
 ///   transactionNotCompleted: (reason) => print('Failed: $reason'),
 /// );
@@ -37,95 +40,153 @@ class PayWithPayStack {
   /// reference.
   String generateUuidV4() => const Uuid().v4();
 
-  /// Launches the Paystack payment WebView and resolves with the [PaymentData]
+  /// Launches the Paystack payment WebView and resolves with [PaymentData]
   /// when the checkout session ends (whether successful or not).
   ///
-  /// ### Required parameters
-  /// - [context] — the current [BuildContext], used for navigation.
+  /// ---
+  /// ### Core (required)
+  /// - [context] — current [BuildContext] used for navigation.
   /// - [secretKey] — your Paystack secret key (`sk_live_…` or `sk_test_…`).
   /// - [customerEmail] — the customer's email address.
-  /// - [reference] — a unique transaction reference (use [generateUuidV4]).
-  /// - [callbackUrl] — the URL Paystack redirects to after payment; must match
-  ///   what is configured in your Paystack dashboard.
-  /// - [currency] — ISO 4217 currency code (e.g. `"GHS"`, `"NGN"`, `"ZAR"`).
-  /// - [amount] — amount to charge in the **major** currency unit (e.g. `50.0`
-  ///   for GHS 50.00). The plugin converts this to pesewas / kobo automatically.
-  /// - [transactionCompleted] — called with a [PaymentData] object when the
-  ///   transaction succeeds.
-  /// - [transactionNotCompleted] — called with a status string when the
-  ///   transaction does not succeed.
+  /// - [reference] — unique transaction reference (use [generateUuidV4]).
+  /// - [callbackUrl] — redirect URL after payment; must match your Paystack
+  ///   dashboard setting.
+  /// - [currency] — ISO 4217 code e.g. `"GHS"`, `"NGN"`, `"ZAR"`.
+  /// - [amount] — amount in the **major** unit (e.g. `50.0` = GHS 50.00).
+  ///   Converted to pesewas / kobo automatically.
+  /// - [transactionCompleted] — called with [PaymentData] on success.
+  /// - [transactionNotCompleted] — called with a status string on failure.
   ///
-  /// ### Optional parameters
-  /// - [channels] — list of [PaystackChannel] values to restrict the payment
-  ///   options shown to the customer.
+  /// ---
+  /// ### Payment channels
+  /// - [channels] — restrict which payment options are shown to the customer.
+  ///
+  /// ---
+  /// ### Subscriptions
   /// - [plan] — Paystack subscription plan code.
-  /// - [metadata] — additional key-value data attached to the transaction.
-  /// - [showAppBar] — whether to show an AppBar above the WebView. Defaults
-  ///   to `true`.
-  /// - [appBarTitle] — title shown in the AppBar. Defaults to
-  ///   `"Secure Checkout"`.
-  /// - [appBarColor] — background color of the AppBar.
-  /// - [appBarTextColor] — foreground/text color of the AppBar.
-  /// - [loadingWidget] — a custom widget to display while the payment session
-  ///   is being initialised. Replaces the default branded loader.
-  /// - [errorWidget] — a builder for a custom error screen. Receives the
-  ///   error message and a retry callback.
+  /// - [invoiceLimit] — number of times to charge during the plan.
+  ///
+  /// ---
+  /// ### Split payments
+  /// - [subaccount] — route/split payment to a subaccount (`ACCT_xxxxxxxx`).
+  /// - [splitCode] — use a pre-defined multi-recipient split group (`SPL_xxx`).
+  /// - [transactionCharge] — flat fee (major unit) for the main account
+  ///   when splitting. Overrides the default percentage.
+  /// - [bearer] — who pays the Paystack transaction fees
+  ///   ([PaystackBearer.account] or [PaystackBearer.subaccount]).
+  ///
+  /// ---
+  /// ### Customer prefill
+  /// - [customerFirstName] — pre-fills the customer's first name.
+  /// - [customerLastName] — pre-fills the customer's last name.
+  /// - [customerPhone] — pre-fills the customer's phone number.
+  ///
+  /// ---
+  /// ### Structured metadata
+  /// - [customFields] — list of [PaystackCustomField] objects shown on the
+  ///   Paystack Dashboard for this transaction.
+  /// - [cartItems] — list of [PaystackCartItem] line items attached to the
+  ///   transaction's metadata.
+  /// - [metadata] — raw additional key-value data for the transaction.
+  ///
+  /// ---
+  /// ### UI customisation
+  /// - [showAppBar] — show the AppBar above the WebView (default `true`).
+  /// - [appBarTitle] — AppBar title (default `"Secure Checkout"`).
+  /// - [appBarColor] — AppBar background color.
+  /// - [appBarTextColor] — AppBar text/icon color.
+  /// - [loadingWidget] — custom widget while the session initialises.
+  /// - [errorWidget] — custom error screen builder (receives error + retry).
   Future<PaymentData?> now({
-    /// Current [BuildContext], required for navigation.
+    // ── Required ─────────────────────────────────────────────────────────────
     required BuildContext context,
-
-    /// Paystack secret key (`sk_live_…` or `sk_test_…`).
     required String secretKey,
-
-    /// Customer's email address.
     required String customerEmail,
-
-    /// Unique transaction reference (use [generateUuidV4]).
     required String reference,
-
-    /// Redirect URL after payment, must match your Paystack dashboard setting.
     required String callbackUrl,
-
-    /// ISO 4217 currency code, e.g. `"GHS"`, `"NGN"`, `"ZAR"`.
     required String currency,
-
-    /// Amount to charge in the major currency unit (e.g. `50.0` = GHS 50.00).
     required double amount,
-
-    /// Called with [PaymentData] when the transaction is successful.
     required Function(PaymentData data) transactionCompleted,
-
-    /// Called with a status string when the transaction is not successful.
     required Function(String reason) transactionNotCompleted,
 
-    /// Restrict which payment options are available to the customer.
+    // ── Payment channels ──────────────────────────────────────────────────────
     List<PaystackChannel>? channels,
 
-    /// Paystack subscription plan code.
+    // ── Subscriptions ─────────────────────────────────────────────────────────
     String? plan,
+    int? invoiceLimit,
 
-    /// Additional metadata attached to the transaction.
+    // ── Split payments ────────────────────────────────────────────────────────
+    /// Subaccount code to route/split the payment to (e.g. `ACCT_xxxxxxxxxx`).
+    String? subaccount,
+
+    /// Pre-defined split group code (e.g. `SPL_xxxxxxxxxx`).
+    String? splitCode,
+
+    /// Flat fee (in major currency unit) that goes to the main account.
+    /// Overrides the default percentage split when using [subaccount].
+    double? transactionCharge,
+
+    /// Who bears the Paystack transaction fees.
+    PaystackBearer? bearer,
+
+    // ── Customer prefill ──────────────────────────────────────────────────────
+    /// Pre-fills the customer's first name on the checkout form.
+    String? customerFirstName,
+
+    /// Pre-fills the customer's last name on the checkout form.
+    String? customerLastName,
+
+    /// Pre-fills the customer's phone number on the checkout form.
+    String? customerPhone,
+
+    // ── Structured metadata ───────────────────────────────────────────────────
+    /// Custom fields shown on the Paystack Dashboard for this transaction.
+    List<PaystackCustomField>? customFields,
+
+    /// Cart line items attached to the transaction's metadata.
+    List<PaystackCartItem>? cartItems,
+
+    /// Raw additional metadata for the transaction.
     Map<String, dynamic>? metadata,
 
-    /// Whether to show the AppBar above the WebView. Defaults to `true`.
+    // ── UI customisation ──────────────────────────────────────────────────────
     bool showAppBar = true,
-
-    /// Title shown in the AppBar. Defaults to `"Secure Checkout"`.
     String appBarTitle = 'Secure Checkout',
-
-    /// Background color of the AppBar.
     Color? appBarColor,
-
-    /// Foreground/text color of the AppBar.
     Color? appBarTextColor,
-
-    /// Custom loading widget shown while the session initialises.
     Widget? loadingWidget,
-
-    /// Custom error widget builder. Receives the error message and a retry
-    /// callback.
     Widget Function(String error, VoidCallback retry)? errorWidget,
   }) {
+    // Build a merged metadata map that incorporates customerFirstName/LastName/Phone
+    // as custom_fields so they appear on the Paystack Dashboard.
+    final prefillFields = <PaystackCustomField>[
+      if (customerFirstName != null)
+        PaystackCustomField(
+          displayName: 'First Name',
+          variableName: 'first_name',
+          value: customerFirstName,
+        ),
+      if (customerLastName != null)
+        PaystackCustomField(
+          displayName: 'Last Name',
+          variableName: 'last_name',
+          value: customerLastName,
+        ),
+      if (customerPhone != null)
+        PaystackCustomField(
+          displayName: 'Phone',
+          variableName: 'phone',
+          value: customerPhone,
+        ),
+    ];
+
+    // Merge caller-supplied customFields with the prefill fields.
+    final mergedCustomFields = [
+      ...prefillFields,
+      if (customFields != null) ...customFields,
+    ];
+
     return Navigator.push<PaymentData>(
       context,
       MaterialPageRoute(
@@ -139,6 +200,16 @@ class PayWithPayStack {
           paymentChannel:
               channels != null ? PaystackChannel.toStringList(channels) : null,
           plan: plan,
+          invoiceLimit: invoiceLimit,
+          subaccount: subaccount,
+          splitCode: splitCode,
+          transactionCharge: transactionCharge,
+          bearer: bearer,
+          customerFirstName: customerFirstName,
+          customerLastName: customerLastName,
+          customerPhone: customerPhone,
+          customFields: mergedCustomFields.isNotEmpty ? mergedCustomFields : null,
+          cartItems: cartItems,
           metadata: metadata,
           transactionCompleted: transactionCompleted,
           transactionNotCompleted: transactionNotCompleted,

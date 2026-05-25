@@ -5,7 +5,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pay_with_paystack/model/payment_data.dart';
+import 'package:pay_with_paystack/model/paystack_bearer.dart';
 import 'package:pay_with_paystack/model/paystack_exception.dart';
+import 'package:pay_with_paystack/model/paystack_metadata.dart';
 import 'package:pay_with_paystack/model/paystack_request_response.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -24,6 +26,42 @@ class PaystackPayNow extends StatefulWidget {
   final List<String>? paymentChannel;
   final void Function(PaymentData data) transactionCompleted;
   final void Function(String reason) transactionNotCompleted;
+
+  // ── Split payments ────────────────────────────────────────────────────────
+  /// Subaccount code to route/split the payment to (e.g. `ACCT_xxxxxxxxxx`).
+  final String? subaccount;
+
+  /// Pre-defined split group code from the Paystack Dashboard.
+  final String? splitCode;
+
+  /// Flat fee (in **major** currency unit) sent to the main account when
+  /// using subaccount splits. Overrides the default percentage split.
+  final double? transactionCharge;
+
+  /// Who bears the Paystack transaction fees. Defaults to [PaystackBearer.account].
+  final PaystackBearer? bearer;
+
+  // ── Subscriptions ─────────────────────────────────────────────────────────
+  /// Number of times to charge the customer during a subscription plan.
+  /// Only relevant when [plan] is set.
+  final int? invoiceLimit;
+
+  // ── Customer prefill ──────────────────────────────────────────────────────
+  /// Pre-fill the customer's first name on the checkout form.
+  final String? customerFirstName;
+
+  /// Pre-fill the customer's last name on the checkout form.
+  final String? customerLastName;
+
+  /// Pre-fill the customer's phone number on the checkout form.
+  final String? customerPhone;
+
+  // ── Structured metadata ───────────────────────────────────────────────────
+  /// Typed custom fields shown on the Paystack Dashboard for this transaction.
+  final List<PaystackCustomField>? customFields;
+
+  /// Cart line items attached to this transaction's metadata.
+  final List<PaystackCartItem>? cartItems;
 
   // ── UI customisation ──────────────────────────────────────────────────────
   final bool showAppBar;
@@ -46,6 +84,16 @@ class PaystackPayNow extends StatefulWidget {
     this.metadata,
     this.plan,
     this.paymentChannel,
+    this.subaccount,
+    this.splitCode,
+    this.transactionCharge,
+    this.bearer,
+    this.invoiceLimit,
+    this.customerFirstName,
+    this.customerLastName,
+    this.customerPhone,
+    this.customFields,
+    this.cartItems,
     this.showAppBar = true,
     this.appBarTitle = 'Secure Checkout',
     this.appBarColor,
@@ -96,13 +144,31 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     // Amount must be in the smallest currency unit (kobo / pesewas).
     final amountInSubunit = (widget.amount * 100).toStringAsFixed(0);
 
-    // Enrich metadata with cancel_action so the WebView can detect dismissal.
+    // ── Build enriched metadata ────────────────────────────────────────────
     final Map<String, dynamic> enrichedMetadata = {
       if (widget.metadata != null) ...widget.metadata!,
-      'cancel_action':
-          'https://github.com/popekabu/pay_with_paystack',
+      // Allows the WebView to detect when the user dismisses the checkout.
+      'cancel_action': 'https://github.com/popekabu/pay_with_paystack',
     };
 
+    // Merge typed custom_fields (preserve any already in metadata).
+    final existingCustomFields =
+        (enrichedMetadata['custom_fields'] as List?)?.cast<Map<String, dynamic>>()
+            ?? [];
+    final typedCustomFields =
+        widget.customFields?.map((f) => f.toJson()).toList() ?? [];
+    final allCustomFields = [...existingCustomFields, ...typedCustomFields];
+    if (allCustomFields.isNotEmpty) {
+      enrichedMetadata['custom_fields'] = allCustomFields;
+    }
+
+    // Attach cart items.
+    if (widget.cartItems != null && widget.cartItems!.isNotEmpty) {
+      enrichedMetadata['cart_items'] =
+          widget.cartItems!.map((i) => i.toJson()).toList();
+    }
+
+    // ── Build request body ─────────────────────────────────────────────────
     final requestBody = <String, dynamic>{
       'email': widget.email,
       'amount': amountInSubunit,
@@ -111,7 +177,14 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       'metadata': enrichedMetadata,
       'callback_url': widget.callbackUrl,
       if (widget.plan != null) 'plan': widget.plan,
+      if (widget.invoiceLimit != null) 'invoice_limit': widget.invoiceLimit,
       if (widget.paymentChannel != null) 'channels': widget.paymentChannel,
+      if (widget.subaccount != null) 'subaccount': widget.subaccount,
+      if (widget.splitCode != null) 'split_code': widget.splitCode,
+      if (widget.transactionCharge != null)
+        'transaction_charge':
+            (widget.transactionCharge! * 100).toStringAsFixed(0),
+      if (widget.bearer != null) 'bearer': widget.bearer!.value,
     };
 
     http.Response response;

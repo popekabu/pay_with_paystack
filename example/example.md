@@ -30,54 +30,102 @@ class PaymentPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Pay With Paystack')),
       body: Center(
-        child: ElevatedButton(
-          onPressed: () => _startPayment(context),
-          child: const Text('Pay GHS 50.00'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Basic payment
+            ElevatedButton(
+              onPressed: () => _basicPayment(context),
+              child: const Text('Basic Payment (GHS 50)'),
+            ),
+            const SizedBox(height: 12),
+
+            // Full-featured payment
+            ElevatedButton(
+              onPressed: () => _fullFeaturedPayment(context),
+              child: const Text('Full-Featured Payment'),
+            ),
+            const SizedBox(height: 12),
+
+            // Split payment
+            ElevatedButton(
+              onPressed: () => _splitPayment(context),
+              child: const Text('Split Payment'),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Future<void> _startPayment(BuildContext context) async {
-    // Generate a unique reference for this transaction
-    final ref = PayWithPayStack().generateUuidV4();
-
+  // ── Example 1: Basic payment ────────────────────────────────────────────────
+  Future<void> _basicPayment(BuildContext context) async {
     await PayWithPayStack().now(
       context: context,
-      secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX', // Replace with your key
+      secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX',
       customerEmail: 'user@example.com',
-      reference: ref,
+      reference: PayWithPayStack().generateUuidV4(),
       currency: 'GHS',
-      amount: 50.00, // GHS 50.00 — converted to pesewas automatically
+      amount: 50.00,
+      callbackUrl: 'https://your-callback.com',
+      transactionCompleted: (PaymentData data) {
+        debugPrint('✅ Paid: ${data.amountInMajorUnit} ${data.currency}');
+      },
+      transactionNotCompleted: (String reason) {
+        debugPrint('❌ Not completed: $reason');
+      },
+    );
+  }
 
-      // Redirect URL — must match what's set in your Paystack dashboard
+  // ── Example 2: Full-featured payment ───────────────────────────────────────
+  Future<void> _fullFeaturedPayment(BuildContext context) async {
+    await PayWithPayStack().now(
+      context: context,
+      secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX',
+      customerEmail: 'daniel@example.com',
+      reference: PayWithPayStack().generateUuidV4(),
+      currency: 'GHS',
+      amount: 120.00,
       callbackUrl: 'https://your-callback.com',
 
-      // Restrict which payment options are shown (optional)
+      // Restrict payment channels
       channels: [
         PaystackChannel.card,
         PaystackChannel.mobileMoney,
         PaystackChannel.bankTransfer,
       ],
 
-      // Extra data (optional)
-      metadata: {
-        'custom_fields': [
-          {
-            'display_name': 'Customer Name',
-            'variable_name': 'customer_name',
-            'value': 'Daniel Asare',
-          },
-        ],
-      },
+      // Pre-fill customer info on the checkout form
+      customerFirstName: 'Daniel',
+      customerLastName: 'Asare',
+      customerPhone: '+233244000000',
 
-      // Optional UI customisation
+      // Cart items (line items in metadata)
+      cartItems: [
+        PaystackCartItem(name: 'Wireless Headphones', amount: 80.00, quantity: 1),
+        PaystackCartItem(name: 'Phone Case', amount: 20.00, quantity: 2),
+      ],
+
+      // Custom fields visible on the Paystack Dashboard
+      customFields: [
+        PaystackCustomField(
+          displayName: 'Order ID',
+          variableName: 'order_id',
+          value: '#ORD-1234',
+        ),
+        PaystackCustomField(
+          displayName: 'Delivery Zone',
+          variableName: 'delivery_zone',
+          value: 'Accra Central',
+        ),
+      ],
+
+      // UI customisation
       showAppBar: true,
-      appBarTitle: 'Complete Payment',
+      appBarTitle: 'Complete Your Order',
       appBarColor: const Color(0xFF0A0A1A),
       appBarTextColor: Colors.white,
 
-      // Called when transaction is successful
       transactionCompleted: (PaymentData data) {
         debugPrint('✅ Payment successful!');
         debugPrint('   Reference : ${data.reference}');
@@ -85,12 +133,37 @@ class PaymentPage extends StatelessWidget {
         debugPrint('   Channel   : ${data.channel}');
         debugPrint('   Customer  : ${data.customer?.fullName}');
         debugPrint('   Fees      : ${data.feesInMajorUnit} ${data.currency}');
-        debugPrint('   Paid at   : ${data.paidAt}');
+        debugPrint('   Reusable  : ${data.authorization?.reusable}');
       },
 
-      // Called when transaction is not successful
       transactionNotCompleted: (String reason) {
         debugPrint('❌ Payment not completed: $reason');
+      },
+    );
+  }
+
+  // ── Example 3: Split payment ────────────────────────────────────────────────
+  Future<void> _splitPayment(BuildContext context) async {
+    await PayWithPayStack().now(
+      context: context,
+      secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX',
+      customerEmail: 'user@example.com',
+      reference: PayWithPayStack().generateUuidV4(),
+      currency: 'GHS',
+      amount: 200.00,
+      callbackUrl: 'https://your-callback.com',
+
+      // Route to a subaccount; main account keeps GHS 20.00 flat fee
+      subaccount: 'ACCT_xxxxxxxxxx',
+      transactionCharge: 20.00,
+      bearer: PaystackBearer.account, // main account bears Paystack fees
+
+      transactionCompleted: (PaymentData data) {
+        debugPrint('✅ Split payment done: ${data.reference}');
+      },
+
+      transactionNotCompleted: (String reason) {
+        debugPrint('❌ Not completed: $reason');
       },
     );
   }

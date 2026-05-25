@@ -32,14 +32,11 @@ No extra configuration required.
 
 ---
 
-## Usage
-
-Import the package and call `PayWithPayStack().now(...)`:
+## Basic Usage
 
 ```dart
 import 'package:pay_with_paystack/pay_with_paystack.dart';
 
-// Generate a unique reference for each transaction
 final ref = PayWithPayStack().generateUuidV4();
 
 await PayWithPayStack().now(
@@ -48,7 +45,7 @@ await PayWithPayStack().now(
   customerEmail: 'user@example.com',
   reference: ref,
   currency: 'GHS',
-  amount: 50.00,          // GHS 50.00  — converted to pesewas automatically
+  amount: 50.00,          // GHS 50.00 — converted to pesewas automatically
   callbackUrl: 'https://your-callback.com',
   transactionCompleted: (PaymentData data) {
     print('✅ Paid ${data.amountInMajorUnit} ${data.currency}');
@@ -66,7 +63,7 @@ await PayWithPayStack().now(
 
 ## Payment Channels (type-safe)
 
-Use the `PaystackChannel` enum to restrict which payment options are shown:
+Use the `PaystackChannel` enum instead of raw strings:
 
 ```dart
 channels: [
@@ -76,15 +73,135 @@ channels: [
 ],
 ```
 
-| Enum value                    | API string        |
-|-------------------------------|-------------------|
-| `PaystackChannel.card`        | `card`            |
-| `PaystackChannel.bank`        | `bank`            |
-| `PaystackChannel.ussd`        | `ussd`            |
-| `PaystackChannel.qr`          | `qr`              |
-| `PaystackChannel.mobileMoney` | `mobile_money`    |
-| `PaystackChannel.bankTransfer`| `bank_transfer`   |
-| `PaystackChannel.eft`         | `eft`             |
+| Enum value                     | API string        |
+|--------------------------------|-------------------|
+| `PaystackChannel.card`         | `card`            |
+| `PaystackChannel.bank`         | `bank`            |
+| `PaystackChannel.ussd`         | `ussd`            |
+| `PaystackChannel.qr`           | `qr`              |
+| `PaystackChannel.mobileMoney`  | `mobile_money`    |
+| `PaystackChannel.bankTransfer` | `bank_transfer`   |
+| `PaystackChannel.eft`          | `eft`             |
+
+---
+
+## Customer Prefill
+
+Pre-fill the customer's name and phone on the checkout form so they don't have
+to type it themselves:
+
+```dart
+PayWithPayStack().now(
+  // ...
+  customerFirstName: 'Daniel',
+  customerLastName: 'Asare',
+  customerPhone: '+233244000000',
+);
+```
+
+These are automatically added as `custom_fields` in the transaction metadata so
+they also appear on your Paystack Dashboard.
+
+---
+
+## Cart Items
+
+Attach a typed list of cart line items to the transaction. These appear in the
+transaction metadata on your Paystack Dashboard:
+
+```dart
+PayWithPayStack().now(
+  // ...
+  cartItems: [
+    PaystackCartItem(name: 'Wireless Headphones', amount: 15.00, quantity: 1),
+    PaystackCartItem(name: 'Phone Case', amount: 2.50, quantity: 2),
+    PaystackCartItem(name: 'Charging Cable', amount: 5.00),
+  ],
+);
+```
+
+> Amounts are in the **major** currency unit (e.g. GHS 15.00). The plugin
+> converts to pesewas / kobo automatically.
+
+---
+
+## Custom Fields (Dashboard-visible)
+
+Add custom fields that appear on the Paystack Dashboard when viewing the
+transaction:
+
+```dart
+PayWithPayStack().now(
+  // ...
+  customFields: [
+    PaystackCustomField(
+      displayName: 'Order ID',
+      variableName: 'order_id',
+      value: '#ORD-1234',
+    ),
+    PaystackCustomField(
+      displayName: 'Delivery Zone',
+      variableName: 'delivery_zone',
+      value: 'Accra Central',
+    ),
+  ],
+);
+```
+
+---
+
+## Split Payments
+
+Route a portion of a payment to a subaccount or a pre-defined split group.
+
+### Subaccount split
+
+```dart
+PayWithPayStack().now(
+  // ...
+  subaccount: 'ACCT_xxxxxxxxxx',   // your subaccount code
+  bearer: PaystackBearer.account,  // main account bears fees (default)
+);
+```
+
+### Flat fee override
+
+```dart
+PayWithPayStack().now(
+  // ...
+  subaccount: 'ACCT_xxxxxxxxxx',
+  transactionCharge: 5.00,          // GHS 5.00 flat fee goes to main account
+  bearer: PaystackBearer.subaccount, // subaccount bears Paystack fees
+);
+```
+
+### Pre-defined split group
+
+```dart
+PayWithPayStack().now(
+  // ...
+  splitCode: 'SPL_xxxxxxxxxx',
+);
+```
+
+| Parameter           | Type               | Description |
+|---------------------|--------------------|-------------|
+| `subaccount`        | `String?`          | Subaccount code (`ACCT_xxx`) to split payment |
+| `splitCode`         | `String?`          | Pre-defined split group code (`SPL_xxx`) |
+| `transactionCharge` | `double?`          | Flat fee (major unit) for main account |
+| `bearer`            | `PaystackBearer?`  | Who bears Paystack fees |
+
+---
+
+## Subscriptions
+
+```dart
+PayWithPayStack().now(
+  // ...
+  plan: 'PLN_xxxxxxxxxx',
+  invoiceLimit: 12,  // charge 12 times then stop
+);
+```
 
 ---
 
@@ -92,20 +209,18 @@ channels: [
 
 ```dart
 PayWithPayStack().now(
-  // ... required params ...
-
-  // AppBar
+  // ...
   showAppBar: true,
   appBarTitle: 'Pay Now',
-  appBarColor: Color(0xFF0A0A1A),
+  appBarColor: const Color(0xFF0A0A1A),
   appBarTextColor: Colors.white,
 
-  // Custom loading screen (optional — replaces the default pulsing loader)
+  // Custom loading screen (replaces default pulsing loader)
   loadingWidget: const Center(
     child: CircularProgressIndicator(color: Colors.green),
   ),
 
-  // Custom error screen with retry (optional)
+  // Custom error screen with retry
   errorWidget: (String error, VoidCallback retry) => Center(
     child: Column(
       mainAxisSize: MainAxisSize.min,
@@ -120,17 +235,18 @@ PayWithPayStack().now(
 
 ---
 
-## Metadata
+## Raw Metadata
 
-Attach additional data to a transaction (not consumed by Paystack):
+Attach any extra key-value data to the transaction:
 
 ```dart
 metadata: {
+  'cart_id': '12345',
   'custom_fields': [
     {
-      'display_name': 'Customer Name',
-      'variable_name': 'customer_name',
-      'value': 'Daniel Asare',
+      'display_name': 'Promo Code',
+      'variable_name': 'promo_code',
+      'value': 'SAVE10',
     },
   ],
 },
@@ -138,50 +254,60 @@ metadata: {
 
 ---
 
-## Parameter Reference
+## Full Parameter Reference
 
-| Parameter               | Type                                          | Required | Default              | Description |
-|-------------------------|-----------------------------------------------|----------|----------------------|-------------|
-| `context`               | `BuildContext`                                | ✅       | —                    | Current context for navigation |
-| `secretKey`             | `String`                                      | ✅       | —                    | Paystack secret key |
-| `customerEmail`         | `String`                                      | ✅       | —                    | Customer's email |
-| `reference`             | `String`                                      | ✅       | —                    | Unique transaction reference |
-| `callbackUrl`           | `String`                                      | ✅       | —                    | Redirect URL (must match dashboard) |
-| `currency`              | `String`                                      | ✅       | —                    | ISO 4217 currency code |
-| `amount`                | `double`                                      | ✅       | —                    | Amount in major currency unit |
-| `transactionCompleted`  | `Function(PaymentData)`                       | ✅       | —                    | Success callback |
-| `transactionNotCompleted` | `Function(String)`                          | ✅       | —                    | Failure callback |
-| `channels`              | `List<PaystackChannel>?`                      | ❌       | all channels         | Restrict payment options |
-| `plan`                  | `String?`                                     | ❌       | `null`               | Paystack subscription plan code |
-| `metadata`              | `Map<String, dynamic>?`                       | ❌       | `null`               | Extra transaction data |
-| `showAppBar`            | `bool`                                        | ❌       | `true`               | Show/hide the AppBar |
-| `appBarTitle`           | `String`                                      | ❌       | `"Secure Checkout"`  | AppBar title |
-| `appBarColor`           | `Color?`                                      | ❌       | dark theme default   | AppBar background color |
-| `appBarTextColor`       | `Color?`                                      | ❌       | `Colors.white`       | AppBar text/icon color |
-| `loadingWidget`         | `Widget?`                                     | ❌       | branded loader       | Custom loading UI |
-| `errorWidget`           | `Widget Function(String, VoidCallback)?`      | ❌       | branded error UI     | Custom error UI with retry |
+| Parameter               | Type                                     | Required | Default              |
+|-------------------------|------------------------------------------|----------|----------------------|
+| `context`               | `BuildContext`                           | ✅       | —                    |
+| `secretKey`             | `String`                                 | ✅       | —                    |
+| `customerEmail`         | `String`                                 | ✅       | —                    |
+| `reference`             | `String`                                 | ✅       | —                    |
+| `callbackUrl`           | `String`                                 | ✅       | —                    |
+| `currency`              | `String`                                 | ✅       | —                    |
+| `amount`                | `double`                                 | ✅       | —                    |
+| `transactionCompleted`  | `Function(PaymentData)`                  | ✅       | —                    |
+| `transactionNotCompleted` | `Function(String)`                     | ✅       | —                    |
+| `channels`              | `List<PaystackChannel>?`                 | ❌       | all channels         |
+| `plan`                  | `String?`                                | ❌       | `null`               |
+| `invoiceLimit`          | `int?`                                   | ❌       | `null`               |
+| `subaccount`            | `String?`                                | ❌       | `null`               |
+| `splitCode`             | `String?`                                | ❌       | `null`               |
+| `transactionCharge`     | `double?`                                | ❌       | `null`               |
+| `bearer`                | `PaystackBearer?`                        | ❌       | `null`               |
+| `customerFirstName`     | `String?`                                | ❌       | `null`               |
+| `customerLastName`      | `String?`                                | ❌       | `null`               |
+| `customerPhone`         | `String?`                                | ❌       | `null`               |
+| `customFields`          | `List<PaystackCustomField>?`             | ❌       | `null`               |
+| `cartItems`             | `List<PaystackCartItem>?`                | ❌       | `null`               |
+| `metadata`              | `Map<String, dynamic>?`                  | ❌       | `null`               |
+| `showAppBar`            | `bool`                                   | ❌       | `true`               |
+| `appBarTitle`           | `String`                                 | ❌       | `"Secure Checkout"`  |
+| `appBarColor`           | `Color?`                                 | ❌       | dark theme default   |
+| `appBarTextColor`       | `Color?`                                 | ❌       | `Colors.white`       |
+| `loadingWidget`         | `Widget?`                                | ❌       | branded loader       |
+| `errorWidget`           | `Widget Function(String, VoidCallback)?` | ❌       | branded error UI     |
 
 ---
 
-## PaymentData Fields
+## PaymentData Reference
 
-| Field               | Type            | Description |
-|---------------------|-----------------|-------------|
-| `id`                | `int?`          | Paystack transaction ID |
-| `status`            | `String?`       | `"success"`, `"failed"`, etc. |
-| `reference`         | `String?`       | Transaction reference |
-| `amount`            | `int?`          | Amount in smallest unit (kobo/pesewas) |
-| `requestedAmount`   | `int?`          | Originally requested amount |
-| `currency`          | `String?`       | Currency code |
-| `channel`           | `String?`       | Payment channel used |
-| `fees`              | `int?`          | Fees in smallest unit |
-| `paidAt`            | `String?`       | Payment timestamp |
-| `gatewayResponse`   | `String?`       | Gateway message |
-| `customer`          | `Customer?`     | Customer details |
-| `authorization`     | `Authorization?`| Card/auth details |
-| `isSuccessful`      | `bool`          | Helper: `status == "success"` |
-| `amountInMajorUnit` | `double?`       | Helper: `amount / 100` |
-| `feesInMajorUnit`   | `double?`       | Helper: `fees / 100` |
+| Field               | Type             | Description |
+|---------------------|------------------|-------------|
+| `id`                | `int?`           | Transaction ID |
+| `status`            | `String?`        | `"success"`, `"failed"`, etc. |
+| `reference`         | `String?`        | Transaction reference |
+| `amount`            | `int?`           | Amount in smallest unit |
+| `requestedAmount`   | `int?`           | Originally requested amount |
+| `currency`          | `String?`        | Currency code |
+| `channel`           | `String?`        | Payment channel used |
+| `fees`              | `int?`           | Fees in smallest unit |
+| `paidAt`            | `String?`        | Payment timestamp |
+| `gatewayResponse`   | `String?`        | Gateway message |
+| `customer`          | `Customer?`      | Customer details |
+| `authorization`     | `Authorization?` | Card/auth details |
+| `isSuccessful`      | `bool`           | `status == "success"` |
+| `amountInMajorUnit` | `double?`        | `amount / 100` |
+| `feesInMajorUnit`   | `double?`        | `fees / 100` |
 
 ---
 
@@ -211,7 +337,7 @@ Feel free to contribute — the project is open to the public!
 
 ## 📝 Contributing, 😞 Issues, and 🐛 Bug Reports
 
-This project is open to public contributions. If you encounter any issues or want to report a bug, please submit a detailed report <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>.
+Submit a detailed report <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>.
 
 ## Support My Work 🙏🏽
 

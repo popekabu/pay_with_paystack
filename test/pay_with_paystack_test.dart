@@ -285,4 +285,78 @@ void main() {
       expect(ex.toString(), contains('invalid key'));
     });
   });
+
+  // ── PaystackBearer ─────────────────────────────────────────────────────────
+  group('PaystackBearer', () {
+    test('account has correct string value', () {
+      expect(PaystackBearer.account.value, 'account');
+    });
+
+    test('subaccount has correct string value', () {
+      expect(PaystackBearer.subaccount.value, 'subaccount');
+    });
+
+    test('all bearers have distinct string values', () {
+      final values = PaystackBearer.values.map((b) => b.value).toList();
+      expect(values.toSet().length, equals(values.length));
+    });
+  });
+
+  // ── PaystackCustomField ────────────────────────────────────────────────────
+  group('PaystackCustomField', () {
+    const field = PaystackCustomField(
+      displayName: 'Order ID',
+      variableName: 'order_id',
+      value: '#ORD-1234',
+    );
+
+    test('toJson produces correct keys', () {
+      final json = field.toJson();
+      expect(json['display_name'], 'Order ID');
+      expect(json['variable_name'], 'order_id');
+      expect(json['value'], '#ORD-1234');
+    });
+
+    test('toString is readable', () {
+      expect(field.toString(), contains('Order ID'));
+      expect(field.toString(), contains('#ORD-1234'));
+    });
+  });
+
+  // ── PaystackCartItem ───────────────────────────────────────────────────────
+  group('PaystackCartItem', () {
+    const item = PaystackCartItem(
+      name: 'Wireless Headphones',
+      amount: 15.00, // GHS 15.00
+      quantity: 2,
+    );
+
+    test('toJson produces correct keys', () {
+      final json = item.toJson();
+      expect(json['name'], 'Wireless Headphones');
+      expect(json['quantity'], 2);
+    });
+
+    test('toJson converts amount to subunit string', () {
+      final json = item.toJson();
+      // 15.00 GHS → 1500 pesewas
+      expect(json['amount'], '1500');
+    });
+
+    test('quantity defaults to 1', () {
+      const singleItem = PaystackCartItem(name: 'Cap', amount: 5.00);
+      expect(singleItem.quantity, 1);
+    });
+
+    test('toString is readable', () {
+      expect(item.toString(), contains('Wireless Headphones'));
+      expect(item.toString(), contains('2'));
+    });
+
+    test('fractional amounts convert correctly', () {
+      const fractional = PaystackCartItem(name: 'Snack', amount: 1.50);
+      final json = fractional.toJson();
+      expect(json['amount'], '150');
+    });
+  });
 }
