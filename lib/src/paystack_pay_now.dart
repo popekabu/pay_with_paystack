@@ -152,9 +152,9 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     };
 
     // Merge typed custom_fields (preserve any already in metadata).
-    final existingCustomFields =
-        (enrichedMetadata['custom_fields'] as List?)?.cast<Map<String, dynamic>>()
-            ?? [];
+    final existingCustomFields = (enrichedMetadata['custom_fields'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
     final typedCustomFields =
         widget.customFields?.map((f) => f.toJson()).toList() ?? [];
     final allCustomFields = [...existingCustomFields, ...typedCustomFields];
@@ -328,8 +328,7 @@ class _PaystackPayNowState extends State<PaystackPayNow>
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(Color(0xFF00C386)),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C386)),
               ),
             ),
             const SizedBox(height: 16),
@@ -467,10 +466,8 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       )
       ..loadRequest(Uri.parse(data.authUrl));
 
-    final appBarBgColor =
-        widget.appBarColor ?? const Color(0xFF0A0A1A);
-    final appBarFgColor =
-        widget.appBarTextColor ?? Colors.white;
+    final appBarBgColor = widget.appBarColor ?? const Color(0xFF0A0A1A);
+    final appBarFgColor = widget.appBarTextColor ?? Colors.white;
 
     return Stack(
       children: [
@@ -595,11 +592,9 @@ class _LogoPainter extends CustomPainter {
       ..lineTo(size.width * 0.2, size.height * 0.85)
       ..lineTo(size.width * 0.38, size.height * 0.85)
       ..lineTo(size.width * 0.38, size.height * 0.58)
-      ..quadraticBezierTo(
-          size.width * 0.9, size.height * 0.55,
+      ..quadraticBezierTo(size.width * 0.9, size.height * 0.55,
           size.width * 0.9, size.height * 0.36)
-      ..quadraticBezierTo(
-          size.width * 0.9, size.height * 0.15,
+      ..quadraticBezierTo(size.width * 0.9, size.height * 0.15,
           size.width * 0.38, size.height * 0.15)
       ..close();
 
@@ -612,8 +607,7 @@ class _LogoPainter extends CustomPainter {
     final innerPath = Path()
       ..moveTo(size.width * 0.38, size.height * 0.27)
       ..lineTo(size.width * 0.72, size.height * 0.27)
-      ..quadraticBezierTo(
-          size.width * 0.78, size.height * 0.36,
+      ..quadraticBezierTo(size.width * 0.78, size.height * 0.36,
           size.width * 0.72, size.height * 0.46)
       ..lineTo(size.width * 0.38, size.height * 0.46)
       ..close();

@@ -39,8 +39,8 @@ void main() {
 
     test('fromString returns correct channel', () {
       expect(PaystackChannel.fromString('card'), PaystackChannel.card);
-      expect(
-          PaystackChannel.fromString('mobile_money'), PaystackChannel.mobileMoney);
+      expect(PaystackChannel.fromString('mobile_money'),
+          PaystackChannel.mobileMoney);
       expect(PaystackChannel.fromString('eft'), PaystackChannel.eft);
     });
 
@@ -166,8 +166,7 @@ void main() {
     });
 
     test('id parsed correctly as int when provided as String', () {
-      final customer =
-          Customer.fromJson({...sampleJson, 'id': '456'});
+      final customer = Customer.fromJson({...sampleJson, 'id': '456'});
       expect(customer.id, 456);
     });
 

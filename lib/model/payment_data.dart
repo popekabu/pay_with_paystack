@@ -157,8 +157,7 @@ class PaymentData {
   bool get isSuccessful => status == 'success';
 
   /// The amount in the major currency unit (e.g. GHS, NGN).
-  double? get amountInMajorUnit =>
-      amount != null ? amount! / 100.0 : null;
+  double? get amountInMajorUnit => amount != null ? amount! / 100.0 : null;
 
   /// The fees in the major currency unit.
   double? get feesInMajorUnit => fees != null ? fees! / 100.0 : null;

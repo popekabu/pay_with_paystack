@@ -208,7 +208,8 @@ class PayWithPayStack {
           customerFirstName: customerFirstName,
           customerLastName: customerLastName,
           customerPhone: customerPhone,
-          customFields: mergedCustomFields.isNotEmpty ? mergedCustomFields : null,
+          customFields:
+              mergedCustomFields.isNotEmpty ? mergedCustomFields : null,
           cartItems: cartItems,
           metadata: metadata,
           transactionCompleted: transactionCompleted,

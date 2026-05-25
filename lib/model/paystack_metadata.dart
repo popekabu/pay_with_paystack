@@ -41,8 +41,7 @@ class PaystackCustomField {
       };
 
   @override
-  String toString() =>
-      'PaystackCustomField($displayName: $value)';
+  String toString() => 'PaystackCustomField($displayName: $value)';
 }
 
 /// Represents a single line item in a customer's cart.
@@ -82,6 +81,5 @@ class PaystackCartItem {
       };
 
   @override
-  String toString() =>
-      'PaystackCartItem($name × $quantity @ $amount)';
+  String toString() => 'PaystackCartItem($name × $quantity @ $amount)';
 }
