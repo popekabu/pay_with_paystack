@@ -9,3 +9,9 @@ doc/
 
 # Exclude OS-generated files
 .DS_Store
+
+# Exclude build artifacts and caches
+build/
+.dart_tool/
+.fvm/
+
