@@ -2,7 +2,6 @@ library pay_with_paystack;
 
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pay_with_paystack/model/payment_data.dart';

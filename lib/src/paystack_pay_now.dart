@@ -3,7 +3,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pay_with_paystack/model/payment_data.dart';
@@ -229,13 +228,13 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     try {
       response = await http
           .post(
-            Uri.parse('https://api.paystack.co/transaction/initialize'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ${widget.secretKey}',
-            },
-            body: jsonEncode(requestBody),
-          )
+        Uri.parse('https://api.paystack.co/transaction/initialize'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.secretKey}',
+        },
+        body: jsonEncode(requestBody),
+      )
           .timeout(widget.timeout, onTimeout: () {
         _log('[TIMEOUT] Request timed out after ${widget.timeout.inSeconds}s');
         if (widget.onTimeout != null) {
@@ -244,7 +243,8 @@ class _PaystackPayNowState extends State<PaystackPayNow>
           widget.transactionNotCompleted('timeout');
         }
         // Return a fake 408 so the FutureBuilder hits the error branch.
-        return http.Response('{"status":false,"message":"Request timeout"}', 408);
+        return http.Response(
+            '{"status":false,"message":"Request timeout"}', 408);
       });
     } on Exception catch (e) {
       _log('[ERROR] Network error: $e');
@@ -284,15 +284,13 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
     http.Response response;
     try {
-      response = await http
-          .get(
-            Uri.parse('https://api.paystack.co/transaction/verify/$ref'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ${widget.secretKey}',
-            },
-          )
-          .timeout(widget.timeout);
+      response = await http.get(
+        Uri.parse('https://api.paystack.co/transaction/verify/$ref'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.secretKey}',
+        },
+      ).timeout(widget.timeout);
     } on TimeoutException {
       _log('[TIMEOUT] Verification timed out');
       if (mounted) {
