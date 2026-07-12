@@ -78,6 +78,18 @@ class PaystackPayNow extends StatefulWidget {
   final Widget? loadingWidget;
   final Widget Function(String error, VoidCallback retry)? errorWidget;
 
+  /// Accent color used for the loading indicator, linear progress bar,
+  /// verification spinner, and the "Try Again" button.
+  ///
+  /// Defaults to Paystack green (`#00C386`).
+  final Color? progressColor;
+
+  /// Background (track) color for the linear progress indicator shown
+  /// while the WebView page is loading.
+  ///
+  /// Defaults to `Color(0xFF1E1E2E)`.
+  final Color? progressBackgroundColor;
+
   // ── Network options ───────────────────────────────────────────────────────
   /// Maximum time to wait for the Paystack API before giving up.
   final Duration timeout;
@@ -120,6 +132,8 @@ class PaystackPayNow extends StatefulWidget {
     this.appBarTextColor,
     this.loadingWidget,
     this.errorWidget,
+    this.progressColor,
+    this.progressBackgroundColor,
     this.timeout = const Duration(seconds: 30),
     this.enableLogging = false,
     this.onTimeout,
@@ -138,6 +152,9 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
   /// WebView load progress (0–100). Drives the linear progress bar.
   int _loadProgress = 0;
+
+  /// Created once when the API response arrives. Never recreated on rebuild.
+  WebViewController? _webViewController;
 
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
@@ -257,7 +274,7 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
     if (response.statusCode == 408) {
       // Already handled in onTimeout above; surface as exception for UI.
-      throw PaystackException(
+      throw const PaystackException(
         message: 'Request timed out. Please check your connection.',
         statusCode: 408,
       );
@@ -379,6 +396,7 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     if (widget.loadingWidget != null) {
       return Scaffold(body: Center(child: widget.loadingWidget!));
     }
+    final accent = widget.progressColor ?? const Color(0xFF00C386);
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
       body: Center(
@@ -391,21 +409,21 @@ class _PaystackPayNowState extends State<PaystackPayNow>
                 width: 88,
                 height: 88,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00C386).withValues(alpha: 0.12),
+                  color: accent.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Center(
-                  child: _PaystackLogo(),
+                child: Center(
+                  child: _PaystackLogo(color: accent),
                 ),
               ),
             ),
             const SizedBox(height: 28),
-            const SizedBox(
+            SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C386)),
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
               ),
             ),
             const SizedBox(height: 16),
@@ -429,6 +447,7 @@ class _PaystackPayNowState extends State<PaystackPayNow>
         body: widget.errorWidget!(error, _retry),
       );
     }
+    final accent = widget.progressColor ?? const Color(0xFF00C386);
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
       body: SafeArea(
@@ -492,7 +511,7 @@ class _PaystackPayNowState extends State<PaystackPayNow>
                     child: FilledButton(
                       onPressed: _retry,
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C386),
+                        backgroundColor: accent,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -514,8 +533,13 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     );
   }
 
-  Widget _buildWebViewState(PaystackRequestResponse data) {
-    final controller = WebViewController()
+  /// Creates the [WebViewController] exactly once for the given [data].
+  /// Subsequent rebuilds reuse the same controller so [loadRequest] is never
+  /// called again (which was causing the infinite-reload loop).
+  WebViewController _getOrCreateController(PaystackRequestResponse data) {
+    if (_webViewController != null) return _webViewController!;
+
+    _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -552,6 +576,15 @@ class _PaystackPayNowState extends State<PaystackPayNow>
         ),
       )
       ..loadRequest(Uri.parse(data.authUrl));
+
+    return _webViewController!;
+  }
+
+  Widget _buildWebViewState(PaystackRequestResponse data) {
+    final controller = _getOrCreateController(data);
+    final accent = widget.progressColor ?? const Color(0xFF00C386);
+    final progressBg =
+        widget.progressBackgroundColor ?? const Color(0xFF1E1E2E);
 
     final appBarBgColor = widget.appBarColor ?? const Color(0xFF0A0A1A);
     final appBarFgColor = widget.appBarTextColor ?? Colors.white;
@@ -595,10 +628,8 @@ class _PaystackPayNowState extends State<PaystackPayNow>
                     child: _loadProgress < 100
                         ? LinearProgressIndicator(
                             value: _loadProgress / 100,
-                            backgroundColor: const Color(0xFF1E1E2E),
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              Color(0xFF00C386),
-                            ),
+                            backgroundColor: progressBg,
+                            valueColor: AlwaysStoppedAnimation<Color>(accent),
                             minHeight: 3,
                           )
                         : const SizedBox.shrink(),
@@ -612,25 +643,24 @@ class _PaystackPayNowState extends State<PaystackPayNow>
         if (_isVerifying)
           Container(
             color: Colors.black54,
-            child: const Center(
+            child: Center(
               child: Card(
-                color: Color(0xFF1A1A2E),
+                color: const Color(0xFF1A1A2E),
                 elevation: 8,
-                shape: RoundedRectangleBorder(
+                shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.all(Radius.circular(16)),
                 ),
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF00C386),
-                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
                       ),
-                      SizedBox(height: 16),
-                      Text(
+                      const SizedBox(height: 16),
+                      const Text(
                         'Verifying transaction…',
                         style: TextStyle(
                           color: Colors.white70,
@@ -649,6 +679,8 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
   void _retry() {
     setState(() {
+      _webViewController = null;
+      _loadProgress = 0;
       _requestFuture = _makePaymentRequest();
     });
   }
@@ -658,23 +690,30 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
 class _PaystackLogo extends StatelessWidget {
   final double size;
-  const _PaystackLogo({this.size = 40});
+  final Color color;
+  const _PaystackLogo({
+    this.size = 40,
+    this.color = const Color(0xFF00C386),
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _LogoPainter()),
+      child: CustomPaint(painter: _LogoPainter(color: color)),
     );
   }
 }
 
 class _LogoPainter extends CustomPainter {
+  final Color color;
+  const _LogoPainter({this.color = const Color(0xFF00C386)});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF00C386)
+      ..color = color
       ..style = PaintingStyle.fill;
 
     // Draw a simple stylised "P" mark in the Paystack green
@@ -693,7 +732,7 @@ class _LogoPainter extends CustomPainter {
 
     // Inner cutout to form the "bowl" of the P
     final cutout = Paint()
-      ..color = const Color(0xFF00C386).withValues(alpha: 0)
+      ..color = color.withValues(alpha: 0)
       ..blendMode = BlendMode.clear;
     final innerPath = Path()
       ..moveTo(size.width * 0.38, size.height * 0.27)
@@ -710,5 +749,5 @@ class _LogoPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _LogoPainter old) => old.color != color;
 }

@@ -330,6 +330,10 @@ PayWithPayStack().now(
   appBarColor: const Color(0xFF0A0A1A),
   appBarTextColor: Colors.white,
 
+  // Accent color for loading spinner, progress bar, and "Try Again" button
+  progressColor: const Color(0xFF6C63FF),         // defaults to Paystack green
+  progressBackgroundColor: const Color(0xFF1E1E2E), // progress bar track color
+
   // Custom loading screen (replaces default pulsing loader)
   loadingWidget: const Center(
     child: CircularProgressIndicator(color: Colors.green),
@@ -493,6 +497,8 @@ try {
 | `appBarTitle`              | `String`                                 | ❌       | `"Secure Checkout"`  |
 | `appBarColor`              | `Color?`                                 | ❌       | dark theme default   |
 | `appBarTextColor`          | `Color?`                                 | ❌       | `Colors.white`       |
+| `progressColor`            | `Color?`                                 | ❌       | Paystack green `#00C386` |
+| `progressBackgroundColor`  | `Color?`                                 | ❌       | `Color(0xFF1E1E2E)`  |
 | `loadingWidget`            | `Widget?`                                | ❌       | branded loader       |
 | `errorWidget`              | `Widget Function(String, VoidCallback)?` | ❌       | branded error UI     |
 

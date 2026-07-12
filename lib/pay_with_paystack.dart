@@ -166,6 +166,10 @@ class PayWithPayStack {
   /// - [appBarTitle] — AppBar title (default `"Secure Checkout"`).
   /// - [appBarColor] — AppBar background color.
   /// - [appBarTextColor] — AppBar text/icon color.
+  /// - [progressColor] — accent color for the loading/progress indicators and
+  ///   the "Try Again" button. Defaults to Paystack green (`#00C386`).
+  /// - [progressBackgroundColor] — track color for the linear progress bar.
+  ///   Defaults to `Color(0xFF1E1E2E)`.
   /// - [loadingWidget] — custom widget while the session initialises.
   /// - [errorWidget] — custom error screen builder (receives error + retry).
   Future<PaymentData?> now({
@@ -236,6 +240,15 @@ class PayWithPayStack {
     String appBarTitle = 'Secure Checkout',
     Color? appBarColor,
     Color? appBarTextColor,
+
+    /// Accent color for the loading spinner, linear progress bar, verification
+    /// overlay, and the "Try Again" button. Defaults to Paystack green.
+    Color? progressColor,
+
+    /// Track color for the linear progress indicator. Defaults to
+    /// `Color(0xFF1E1E2E)`.
+    Color? progressBackgroundColor,
+
     Widget? loadingWidget,
     Widget Function(String error, VoidCallback retry)? errorWidget,
   }) {
@@ -322,6 +335,8 @@ class PayWithPayStack {
           appBarTitle: appBarTitle,
           appBarColor: appBarColor,
           appBarTextColor: appBarTextColor,
+          progressColor: progressColor,
+          progressBackgroundColor: progressBackgroundColor,
           loadingWidget: loadingWidget,
           errorWidget: errorWidget,
           timeout: resolvedTimeout,

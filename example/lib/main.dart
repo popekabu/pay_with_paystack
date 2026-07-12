@@ -24,7 +24,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Paystack Example',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C386)),
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color.fromARGB(255, 3, 105, 231)),
         useMaterial3: true,
       ),
       home: const PaymentPage(),
@@ -47,7 +48,7 @@ class PaymentPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // ── Tier 1: Basic (uses global config for key/currency/callback) ─
-              _SectionLabel('Tier 1 — Basic (global config)'),
+              _sectionLabel('Tier 1 — Basic (global config)'),
               ElevatedButton(
                 onPressed: () => _basicPayment(context),
                 child: const Text('Basic Payment — GHS 50'),
@@ -62,7 +63,7 @@ class PaymentPage extends StatelessWidget {
               const SizedBox(height: 24),
 
               // ── Tier 2: transactionCancelled callback ─────────────────────────
-              _SectionLabel('Tier 2 — New callbacks & config'),
+              _sectionLabel('Tier 2 — New callbacks & config'),
               ElevatedButton(
                 onPressed: () => _paymentWithCancelCallback(context),
                 child: const Text('Payment with Cancel Callback'),
@@ -84,7 +85,7 @@ class PaymentPage extends StatelessWidget {
               const SizedBox(height: 24),
 
               // ── Tier 3: Charge authorization (no WebView) ─────────────────────
-              _SectionLabel('Tier 3 — Charge Authorization'),
+              _sectionLabel('Tier 3 — Charge Authorization'),
               ElevatedButton(
                 onPressed: () => _chargeAuthorization(context),
                 child: const Text('Charge Saved Card (silent)'),
@@ -92,7 +93,7 @@ class PaymentPage extends StatelessWidget {
               const SizedBox(height: 24),
 
               // ── Tier 3: PaystackCurrency enum ─────────────────────────────────
-              _SectionLabel('Tier 3 — Typed Currency'),
+              _sectionLabel('Tier 3 — Typed Currency'),
               ElevatedButton(
                 onPressed: () => _paymentWithTypedCurrency(context),
                 child: const Text('Pay in NGN (typed currency)'),
@@ -104,7 +105,7 @@ class PaymentPage extends StatelessWidget {
     );
   }
 
-  Widget _SectionLabel(String label) => Padding(
+  Widget _sectionLabel(String label) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
           label,
@@ -126,7 +127,8 @@ class PaymentPage extends StatelessWidget {
       amount: 50.00,
       transactionCompleted: (PaymentData data) {
         debugPrint('[OK] Paid: ${data.amountInMajorUnit} ${data.currency}');
-        debugPrint('   Requested: ${data.requestedAmountInMajorUnit}'); // new getter
+        debugPrint(
+            '   Requested: ${data.requestedAmountInMajorUnit}'); // new getter
       },
       transactionNotCompleted: (String reason) {
         debugPrint('[FAIL] Not completed: $reason');
@@ -150,7 +152,8 @@ class PaymentPage extends StatelessWidget {
         debugPrint('[TIMEOUT] Timed out — show a friendly message');
       },
 
-      transactionCompleted: (data) => debugPrint('[OK] Paid: ${data.reference}'),
+      transactionCompleted: (data) =>
+          debugPrint('[OK] Paid: ${data.reference}'),
       transactionNotCompleted: (reason) => debugPrint('[FAIL] Failed: $reason'),
     );
   }
@@ -169,7 +172,8 @@ class PaymentPage extends StatelessWidget {
         debugPrint('[CANCELLED] User cancelled — not a failed attempt');
       },
 
-      transactionCompleted: (data) => debugPrint('[OK] Paid: ${data.reference}'),
+      transactionCompleted: (data) =>
+          debugPrint('[OK] Paid: ${data.reference}'),
       transactionNotCompleted: (reason) => debugPrint('[FAIL] Failed: $reason'),
     );
   }

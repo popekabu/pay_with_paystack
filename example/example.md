@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Paystack Example',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C386)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 3, 105, 231)),
         useMaterial3: true,
       ),
       home: const PaymentPage(),

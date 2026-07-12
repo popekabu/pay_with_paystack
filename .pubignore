@@ -1,0 +1,11 @@
+# Exclude IDE configurations from publishing
+.idea/
+.vscode/
+*.iml
+
+# Exclude generated documentation
+doc/api/
+doc/
+
+# Exclude OS-generated files
+.DS_Store
