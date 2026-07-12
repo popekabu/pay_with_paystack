@@ -331,8 +331,8 @@ PayWithPayStack().now(
   appBarTextColor: Colors.white,
 
   // Accent color for loading spinner, progress bar, and "Try Again" button
-  progressColor: const Color(0xFF6C63FF),         // defaults to Paystack green
-  progressBackgroundColor: const Color(0xFF1E1E2E), // progress bar track color
+  progressColor: progressColor,                   // e.g. Color(0xFF6C63FF) (defaults to Paystack green)
+  progressBackgroundColor: progressBackgroundColor, // e.g. Color(0xFF1E1E2E) (progress bar track color)
 
   // Custom loading screen (replaces default pulsing loader)
   loadingWidget: const Center(

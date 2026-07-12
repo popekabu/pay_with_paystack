@@ -1,16 +1,8 @@
-## 1.4.0
+## 1.5.0
 
 ### New Features
 
-- Added `progressColor` and `progressBackgroundColor` parameters to `now()` and internal checkout widgets to allow customisation of the loading spinner, linear progress bar, verification overlay spinner, and action buttons.
-
-### Bug Fixes
-
-- Fixed an infinite page loading/refreshing loop in the checkout WebView by caching the `WebViewController` in the state instead of recreating it on every widget rebuild.
-
-## 1.3.0
-
-### New Features
+- Added `progressColor` and `progressBackgroundColor` to customize the accent and track colors of the linear progress bar, loading widget, verification spinner, and "Try Again" button.
 
 - Added `timeout` parameter (`Duration`, default 30 s) to `now()` to prevent indefinite
   hanging on slow networks.
