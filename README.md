@@ -1,12 +1,12 @@
 ## Features
 
-🎉 **Mobile Money** 🎉  
-🎉 **VISA / Mastercard / Verve** 🎉  
-🎉 **Bank** 🎉  
-🎉 **Bank Transfer** 🎉  
-🎉 **USSD** 🎉  
-🎉 **QR** 🎉  
-🎉 **EFT** 🎉  
+- Mobile Money
+- VISA / Mastercard / Verve
+- Bank
+- Bank Transfer
+- USSD
+- QR
+- EFT
 
 ---
 
@@ -32,6 +32,50 @@ No extra configuration required.
 
 ---
 
+## Global Configuration (optional)
+
+Call `PayWithPayStack.configure()` once at app startup to set shared defaults so you
+don't have to repeat `secretKey`, `currency`, and `callbackUrl` on every call:
+
+```dart
+import 'package:flutter/foundation.dart';
+import 'package:pay_with_paystack/pay_with_paystack.dart';
+
+void main() {
+  PayWithPayStack.configure(PaystackConfig(
+    secretKey: 'sk_live_xxxxxxxxxxxxxxxxxxxx',
+    currency: 'GHS',
+    callbackUrl: 'https://my-app.com/payment/callback',
+    enableLogging: kDebugMode, // logs requests in debug, silent in release
+    timeout: const Duration(seconds: 30),
+  ));
+  runApp(const MyApp());
+}
+```
+
+Once configured, the three fields can be omitted on individual calls:
+
+```dart
+await PayWithPayStack().now(
+  context: context,
+  customerEmail: 'user@example.com',
+  reference: PayWithPayStack().generateUuidV4(),
+  amount: 50.00,
+  transactionCompleted: (data) => print('Paid!'),
+  transactionNotCompleted: (reason) => print('Failed: $reason'),
+);
+```
+
+| PaystackConfig field | Type       | Default | Description |
+|----------------------|------------|---------|-------------|
+| `secretKey`          | `String`   | —       | Your Paystack secret key |
+| `currency`           | `String?`  | `null`  | ISO 4217 currency code |
+| `callbackUrl`        | `String?`  | `null`  | Redirect URL after checkout |
+| `enableLogging`      | `bool`     | `false` | Print request/response to console (debug only) |
+| `timeout`            | `Duration` | `30s`   | Max wait time for Paystack API |
+
+---
+
 ## Basic Usage
 
 ```dart
@@ -48,13 +92,16 @@ await PayWithPayStack().now(
   amount: 50.00,          // GHS 50.00 — converted to pesewas automatically
   callbackUrl: 'https://your-callback.com',
   transactionCompleted: (PaymentData data) {
-    print('✅ Paid ${data.amountInMajorUnit} ${data.currency}');
+    print('[OK] Paid ${data.amountInMajorUnit} ${data.currency}');
     print('   Reference : ${data.reference}');
     print('   Channel   : ${data.channel}');
     print('   Customer  : ${data.customer?.fullName}');
   },
   transactionNotCompleted: (String reason) {
-    print('❌ Payment not completed: $reason');
+    print('[FAIL] Payment not completed: $reason');
+  },
+  transactionCancelled: () {
+    print('[CANCELLED] User closed checkout without paying');
   },
 );
 ```
@@ -82,6 +129,30 @@ channels: [
 | `PaystackChannel.mobileMoney`  | `mobile_money`    |
 | `PaystackChannel.bankTransfer` | `bank_transfer`   |
 | `PaystackChannel.eft`          | `eft`             |
+
+---
+
+## Currency (type-safe)
+
+Use the `PaystackCurrency` enum to avoid typos in currency codes:
+
+```dart
+await PayWithPayStack().now(
+  // ...
+  currency: PaystackCurrency.ghs.value, // 'GHS'
+);
+```
+
+| Enum value              | ISO code | Currency              |
+|-------------------------|----------|-----------------------|
+| `PaystackCurrency.ngn`  | `NGN`    | Nigerian Naira        |
+| `PaystackCurrency.ghs`  | `GHS`    | Ghanaian Cedi         |
+| `PaystackCurrency.zar`  | `ZAR`    | South African Rand    |
+| `PaystackCurrency.usd`  | `USD`    | United States Dollar  |
+| `PaystackCurrency.kes`  | `KES`    | Kenyan Shilling       |
+| `PaystackCurrency.xof`  | `XOF`    | West African CFA Franc|
+| `PaystackCurrency.egp`  | `EGP`    | Egyptian Pound        |
+| `PaystackCurrency.rwf`  | `RWF`    | Rwandan Franc         |
 
 ---
 
@@ -205,6 +276,50 @@ PayWithPayStack().now(
 
 ---
 
+## Transaction Cancelled Callback
+
+Distinct from `transactionNotCompleted`, the `transactionCancelled` callback fires
+when the user explicitly **closes** the checkout WebView without attempting any
+payment:
+
+```dart
+PayWithPayStack().now(
+  // ...
+  transactionCancelled: () {
+    // e.g. log the abandonment or show a nudge
+    print('User closed checkout without paying');
+  },
+);
+```
+
+---
+
+## Network Options
+
+Control timeouts and request logging per call (or set defaults via `PaystackConfig`):
+
+```dart
+PayWithPayStack().now(
+  // ...
+  timeout: const Duration(seconds: 15),  // override the 30s default
+  enableLogging: true,                   // print request/response to console
+  onTimeout: () {
+    // called instead of transactionNotCompleted when the request times out
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Request timed out. Please try again.')),
+    );
+  },
+);
+```
+
+| Parameter       | Type            | Default | Description |
+|-----------------|-----------------|---------|-------------|
+| `timeout`       | `Duration?`     | `30s`   | Max wait time for Paystack API |
+| `enableLogging` | `bool?`         | `false` | Log requests/responses via `debugPrint` |
+| `onTimeout`     | `VoidCallback?` | `null`  | Called on timeout; if `null`, `transactionNotCompleted('timeout')` is called |
+
+---
+
 ## Customising the Checkout UI
 
 ```dart
@@ -254,60 +369,164 @@ metadata: {
 
 ---
 
+## Charging a Returning Customer (Silent Re-charge)
+
+Once a customer has paid, you can silently charge them again using their saved
+authorization code — no WebView required:
+
+```dart
+// authorization code from a previous PaymentData:
+final authCode = previousPaymentData.authorization?.authorizationCode;
+
+// Only reusable authorizations can be recharged:
+if (previousPaymentData.authorization?.reusable == true) {
+  await PayWithPayStack().chargeAuthorization(
+    authorizationCode: authCode!,
+    customerEmail: 'user@example.com',
+    amount: 50.00,
+    currency: 'GHS',                                   // optional if config set
+    secretKey: 'sk_live_xxxx',                         // optional if config set
+    reference: PayWithPayStack().generateUuidV4(),      // optional, auto-generated if omitted
+    transactionCompleted: (data) => print('Recharged: ${data.reference}'),
+    transactionNotCompleted: (reason) => print('Failed: $reason'),
+  );
+}
+```
+
+> **Note**: `chargeAuthorization` throws a `PaystackException` on HTTP errors
+> (non-200 responses). Wrap the call in a try/catch for production use.
+
+### chargeAuthorization parameters
+
+| Parameter               | Type                    | Required | Description |
+|-------------------------|-------------------------|----------|-------------|
+| `authorizationCode`     | `String`                | ✅       | Auth code from a previous transaction |
+| `customerEmail`         | `String`                | ✅       | Customer's email |
+| `amount`                | `double`                | ✅       | Amount in major unit (e.g. `50.00`) |
+| `transactionCompleted`  | `Function(PaymentData)` | ✅       | Called on success |
+| `transactionNotCompleted` | `Function(String)`    | ✅       | Called on failure |
+| `secretKey`             | `String?`               | ❌       | Optional if global config set |
+| `currency`              | `String?`               | ❌       | Optional if global config set |
+| `reference`             | `String?`               | ❌       | Auto-generated UUID if omitted |
+| `metadata`              | `Map<String, dynamic>?` | ❌       | Extra metadata for the charge |
+| `timeout`               | `Duration?`             | ❌       | Defaults to 30s or config value |
+| `enableLogging`         | `bool?`                 | ❌       | Log request/response |
+
+---
+
+## Bulk Charges
+
+`PaystackBulkChargeItem` is a data model for building a bulk charge batch.
+Serialise a list of items and post to Paystack's `POST /bulkcharge` endpoint
+yourself:
+
+```dart
+final items = [
+  PaystackBulkChargeItem(
+    authorizationCode: 'AUTH_xxxxx',
+    amount: 50.00,
+    reference: PayWithPayStack().generateUuidV4(),
+    email: 'user1@example.com',
+  ),
+  PaystackBulkChargeItem(
+    authorizationCode: 'AUTH_yyyyy',
+    amount: 20.00,
+    reference: PayWithPayStack().generateUuidV4(),
+    email: 'user2@example.com',
+  ),
+];
+
+// Serialise for the Paystack API:
+final body = jsonEncode(items.map((i) => i.toJson()).toList());
+```
+
+---
+
+## Error Handling (PaystackException)
+
+`chargeAuthorization` throws a `PaystackException` when the API returns a
+non-200 status code. It is also available for your own error-handling logic:
+
+```dart
+try {
+  await PayWithPayStack().chargeAuthorization(/* ... */);
+} on PaystackException catch (e) {
+  print(e.message);      // human-readable error
+  print(e.statusCode);   // HTTP status code
+  print(e.responseBody); // raw Paystack response body
+}
+```
+
+---
+
 ## Full Parameter Reference
 
-| Parameter               | Type                                     | Required | Default              |
-|-------------------------|------------------------------------------|----------|----------------------|
-| `context`               | `BuildContext`                           | ✅       | —                    |
-| `secretKey`             | `String`                                 | ✅       | —                    |
-| `customerEmail`         | `String`                                 | ✅       | —                    |
-| `reference`             | `String`                                 | ✅       | —                    |
-| `callbackUrl`           | `String`                                 | ✅       | —                    |
-| `currency`              | `String`                                 | ✅       | —                    |
-| `amount`                | `double`                                 | ✅       | —                    |
-| `transactionCompleted`  | `Function(PaymentData)`                  | ✅       | —                    |
-| `transactionNotCompleted` | `Function(String)`                     | ✅       | —                    |
-| `channels`              | `List<PaystackChannel>?`                 | ❌       | all channels         |
-| `plan`                  | `String?`                                | ❌       | `null`               |
-| `invoiceLimit`          | `int?`                                   | ❌       | `null`               |
-| `subaccount`            | `String?`                                | ❌       | `null`               |
-| `splitCode`             | `String?`                                | ❌       | `null`               |
-| `transactionCharge`     | `double?`                                | ❌       | `null`               |
-| `bearer`                | `PaystackBearer?`                        | ❌       | `null`               |
-| `customerFirstName`     | `String?`                                | ❌       | `null`               |
-| `customerLastName`      | `String?`                                | ❌       | `null`               |
-| `customerPhone`         | `String?`                                | ❌       | `null`               |
-| `customFields`          | `List<PaystackCustomField>?`             | ❌       | `null`               |
-| `cartItems`             | `List<PaystackCartItem>?`                | ❌       | `null`               |
-| `metadata`              | `Map<String, dynamic>?`                  | ❌       | `null`               |
-| `showAppBar`            | `bool`                                   | ❌       | `true`               |
-| `appBarTitle`           | `String`                                 | ❌       | `"Secure Checkout"`  |
-| `appBarColor`           | `Color?`                                 | ❌       | dark theme default   |
-| `appBarTextColor`       | `Color?`                                 | ❌       | `Colors.white`       |
-| `loadingWidget`         | `Widget?`                                | ❌       | branded loader       |
-| `errorWidget`           | `Widget Function(String, VoidCallback)?` | ❌       | branded error UI     |
+| Parameter                  | Type                                     | Required | Default              |
+|----------------------------|------------------------------------------|----------|----------------------|
+| `context`                  | `BuildContext`                           | ✅       | —                    |
+| `customerEmail`            | `String`                                 | ✅       | —                    |
+| `reference`                | `String`                                 | ✅       | —                    |
+| `amount`                   | `double`                                 | ✅       | —                    |
+| `transactionCompleted`     | `Function(PaymentData)`                  | ✅       | —                    |
+| `transactionNotCompleted`  | `Function(String)`                       | ✅       | —                    |
+| `secretKey`                | `String?`                                | ❌*      | global config        |
+| `currency`                 | `String?`                                | ❌*      | global config        |
+| `callbackUrl`              | `String?`                                | ❌*      | global config        |
+| `transactionCancelled`     | `VoidCallback?`                          | ❌       | `null`               |
+| `channels`                 | `List<PaystackChannel>?`                 | ❌       | all channels         |
+| `plan`                     | `String?`                                | ❌       | `null`               |
+| `invoiceLimit`             | `int?`                                   | ❌       | `null`               |
+| `subaccount`               | `String?`                                | ❌       | `null`               |
+| `splitCode`                | `String?`                                | ❌       | `null`               |
+| `transactionCharge`        | `double?`                                | ❌       | `null`               |
+| `bearer`                   | `PaystackBearer?`                        | ❌       | `null`               |
+| `customerFirstName`        | `String?`                                | ❌       | `null`               |
+| `customerLastName`         | `String?`                                | ❌       | `null`               |
+| `customerPhone`            | `String?`                                | ❌       | `null`               |
+| `customFields`             | `List<PaystackCustomField>?`             | ❌       | `null`               |
+| `cartItems`                | `List<PaystackCartItem>?`                | ❌       | `null`               |
+| `metadata`                 | `Map<String, dynamic>?`                  | ❌       | `null`               |
+| `timeout`                  | `Duration?`                              | ❌       | `30s` (or config)    |
+| `enableLogging`            | `bool?`                                  | ❌       | `false` (or config)  |
+| `onTimeout`                | `VoidCallback?`                          | ❌       | `null`               |
+| `showAppBar`               | `bool`                                   | ❌       | `true`               |
+| `appBarTitle`              | `String`                                 | ❌       | `"Secure Checkout"`  |
+| `appBarColor`              | `Color?`                                 | ❌       | dark theme default   |
+| `appBarTextColor`          | `Color?`                                 | ❌       | `Colors.white`       |
+| `loadingWidget`            | `Widget?`                                | ❌       | branded loader       |
+| `errorWidget`              | `Widget Function(String, VoidCallback)?` | ❌       | branded error UI     |
+
+\* Required if no global config has been set via `PayWithPayStack.configure()`.
 
 ---
 
 ## PaymentData Reference
 
-| Field               | Type             | Description |
-|---------------------|------------------|-------------|
-| `id`                | `int?`           | Transaction ID |
-| `status`            | `String?`        | `"success"`, `"failed"`, etc. |
-| `reference`         | `String?`        | Transaction reference |
-| `amount`            | `int?`           | Amount in smallest unit |
-| `requestedAmount`   | `int?`           | Originally requested amount |
-| `currency`          | `String?`        | Currency code |
-| `channel`           | `String?`        | Payment channel used |
-| `fees`              | `int?`           | Fees in smallest unit |
-| `paidAt`            | `String?`        | Payment timestamp |
-| `gatewayResponse`   | `String?`        | Gateway message |
-| `customer`          | `Customer?`      | Customer details |
-| `authorization`     | `Authorization?` | Card/auth details |
-| `isSuccessful`      | `bool`           | `status == "success"` |
-| `amountInMajorUnit` | `double?`        | `amount / 100` |
-| `feesInMajorUnit`   | `double?`        | `fees / 100` |
+| Field                        | Type             | Description |
+|------------------------------|------------------|-------------|
+| `id`                         | `int?`           | Transaction ID |
+| `status`                     | `String?`        | `"success"`, `"failed"`, etc. |
+| `reference`                  | `String?`        | Transaction reference |
+| `domain`                     | `String?`        | Paystack domain (`live` / `test`) |
+| `amount`                     | `int?`           | Amount in smallest unit (kobo/pesewas) |
+| `requestedAmount`            | `int?`           | Originally requested amount in smallest unit |
+| `currency`                   | `String?`        | Currency code |
+| `channel`                    | `String?`        | Payment channel used |
+| `fees`                       | `int?`           | Fees in smallest unit |
+| `feesSplit`                  | `dynamic`        | Fee split details (if applicable) |
+| `paidAt`                     | `String?`        | Payment timestamp |
+| `createdAt`                  | `String?`        | Transaction creation timestamp |
+| `gatewayResponse`            | `String?`        | Gateway message |
+| `message`                    | `String?`        | Paystack API message |
+| `receiptNumber`              | `String?`        | Receipt number |
+| `orderId`                    | `String?`        | Order ID |
+| `ipAddress`                  | `String?`        | Customer IP address |
+| `customer`                   | `Customer?`      | Customer details |
+| `authorization`              | `Authorization?` | Card/auth details |
+| `isSuccessful`               | `bool`           | `true` when `status == "success"` |
+| `amountInMajorUnit`          | `double?`        | `amount / 100` |
+| `requestedAmountInMajorUnit` | `double?`        | `requestedAmount / 100` |
+| `feesInMajorUnit`            | `double?`        | `fees / 100` |
 
 ---
 
@@ -322,7 +541,7 @@ metadata: {
 
 For bug reports and feature requests, open an issue on [GitHub](https://github.com/popekabu/pay_with_paystack/issues).
 
-## 📝 Contributors
+## Contributors
 
 A big thank you to all contributors:
 
@@ -335,10 +554,10 @@ A big thank you to all contributors:
 
 Feel free to contribute — the project is open to the public!
 
-## 📝 Contributing, 😞 Issues, and 🐛 Bug Reports
+## Contributing, Issues, and Bug Reports
 
 Submit a detailed report <a href="https://github.com/popekabu/pay_with_paystack/issues">here</a>.
 
-## Support My Work 🙏🏽
+## Support My Work
 
 Buy me a coffee: <a href="https://buymeacoffee.com/popekabu">here</a>. Thank you for your support!

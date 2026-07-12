@@ -1,7 +1,9 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pay_with_paystack/model/payment_data.dart';
@@ -26,6 +28,12 @@ class PaystackPayNow extends StatefulWidget {
   final List<String>? paymentChannel;
   final void Function(PaymentData data) transactionCompleted;
   final void Function(String reason) transactionNotCompleted;
+
+  // ── Cancel callback ───────────────────────────────────────────────────────
+  /// Called when the user explicitly closes the checkout without completing
+  /// payment (e.g. taps the close button or hits the cancel URL).
+  /// Distinct from [transactionNotCompleted], which fires after a failed attempt.
+  final VoidCallback? transactionCancelled;
 
   // ── Split payments ────────────────────────────────────────────────────────
   /// Subaccount code to route/split the payment to (e.g. `ACCT_xxxxxxxxxx`).
@@ -71,6 +79,18 @@ class PaystackPayNow extends StatefulWidget {
   final Widget? loadingWidget;
   final Widget Function(String error, VoidCallback retry)? errorWidget;
 
+  // ── Network options ───────────────────────────────────────────────────────
+  /// Maximum time to wait for the Paystack API before giving up.
+  final Duration timeout;
+
+  /// When `true`, logs request/response details via [debugPrint].
+  /// Does nothing in release builds.
+  final bool enableLogging;
+
+  /// Called when the API call exceeds [timeout]. If `null` and a timeout
+  /// occurs, [transactionNotCompleted] is called with `'timeout'`.
+  final VoidCallback? onTimeout;
+
   const PaystackPayNow({
     Key? key,
     required this.secretKey,
@@ -81,6 +101,7 @@ class PaystackPayNow extends StatefulWidget {
     required this.callbackUrl,
     required this.transactionCompleted,
     required this.transactionNotCompleted,
+    this.transactionCancelled,
     this.metadata,
     this.plan,
     this.paymentChannel,
@@ -100,6 +121,9 @@ class PaystackPayNow extends StatefulWidget {
     this.appBarTextColor,
     this.loadingWidget,
     this.errorWidget,
+    this.timeout = const Duration(seconds: 30),
+    this.enableLogging = false,
+    this.onTimeout,
   }) : super(key: key);
 
   @override
@@ -112,6 +136,9 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
   /// Whether we are currently verifying the transaction (overlay shown).
   bool _isVerifying = false;
+
+  /// WebView load progress (0–100). Drives the linear progress bar.
+  int _loadProgress = 0;
 
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
@@ -135,6 +162,14 @@ class _PaystackPayNowState extends State<PaystackPayNow>
   void dispose() {
     _pulseController.dispose();
     super.dispose();
+  }
+
+  // ── Logging ────────────────────────────────────────────────────────────────
+
+  void _log(String message) {
+    if (widget.enableLogging) {
+      debugPrint('[PayWithPaystack] $message');
+    }
   }
 
   // ── Network ────────────────────────────────────────────────────────────────
@@ -187,19 +222,44 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       if (widget.bearer != null) 'bearer': widget.bearer!.value,
     };
 
+    _log('→ POST /transaction/initialize');
+    _log('  body: ${jsonEncode(requestBody)}');
+
     http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('https://api.paystack.co/transaction/initialize'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${widget.secretKey}',
-        },
-        body: jsonEncode(requestBody),
-      );
+      response = await http
+          .post(
+            Uri.parse('https://api.paystack.co/transaction/initialize'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${widget.secretKey}',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(widget.timeout, onTimeout: () {
+        _log('[TIMEOUT] Request timed out after ${widget.timeout.inSeconds}s');
+        if (widget.onTimeout != null) {
+          widget.onTimeout!();
+        } else {
+          widget.transactionNotCompleted('timeout');
+        }
+        // Return a fake 408 so the FutureBuilder hits the error branch.
+        return http.Response('{"status":false,"message":"Request timeout"}', 408);
+      });
     } on Exception catch (e) {
+      _log('[ERROR] Network error: $e');
       throw PaystackException(
         message: 'Network error: ${e.toString()}',
+      );
+    }
+
+    _log('← ${response.statusCode} ${response.body}');
+
+    if (response.statusCode == 408) {
+      // Already handled in onTimeout above; surface as exception for UI.
+      throw PaystackException(
+        message: 'Request timed out. Please check your connection.',
+        statusCode: 408,
       );
     }
 
@@ -220,15 +280,26 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     if (!mounted) return;
     setState(() => _isVerifying = true);
 
+    _log('→ GET /transaction/verify/$ref');
+
     http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('https://api.paystack.co/transaction/verify/$ref'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${widget.secretKey}',
-        },
-      );
+      response = await http
+          .get(
+            Uri.parse('https://api.paystack.co/transaction/verify/$ref'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${widget.secretKey}',
+            },
+          )
+          .timeout(widget.timeout);
+    } on TimeoutException {
+      _log('[TIMEOUT] Verification timed out');
+      if (mounted) {
+        setState(() => _isVerifying = false);
+        _showSnackBar('Verification timed out. Check your Paystack dashboard.');
+      }
+      return;
     } on Exception catch (_) {
       if (mounted) {
         setState(() => _isVerifying = false);
@@ -236,6 +307,8 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       }
       return;
     }
+
+    _log('← ${response.statusCode} ${response.body}');
 
     if (!mounted) return;
     setState(() => _isVerifying = false);
@@ -256,6 +329,12 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       );
       if (mounted) Navigator.of(context).pop();
     }
+  }
+
+  /// Called when the user explicitly cancels — closes without verifying.
+  void _handleUserCancel() {
+    widget.transactionCancelled?.call();
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _showSnackBar(String message) {
@@ -442,6 +521,9 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
+          onProgress: (progress) {
+            if (mounted) setState(() => _loadProgress = progress);
+          },
           onNavigationRequest: (request) async {
             final url = request.url;
 
@@ -455,7 +537,14 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
             final isCallbackUrl = url.contains(widget.callbackUrl);
 
-            if (isCancelUrl || isCallbackUrl) {
+            if (isCancelUrl) {
+              _log('[INFO] User cancelled checkout');
+              _handleUserCancel();
+              return NavigationDecision.prevent;
+            }
+
+            if (isCallbackUrl) {
+              _log('[INFO] Callback URL hit — verifying');
               await _checkTransactionStatus(data.reference);
               return NavigationDecision.prevent;
             }
@@ -499,18 +588,22 @@ class _PaystackPayNowState extends State<PaystackPayNow>
                       child: IconButton(
                         icon: Icon(Icons.close_rounded, color: appBarFgColor),
                         tooltip: 'Close',
-                        onPressed: () async {
-                          await _checkTransactionStatus(data.reference);
-                        },
+                        onPressed: _handleUserCancel,
                       ),
                     ),
                   ],
                   bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(1),
-                    child: Container(
-                      color: const Color(0xFF1E1E2E),
-                      height: 1,
-                    ),
+                    preferredSize: const Size.fromHeight(3),
+                    child: _loadProgress < 100
+                        ? LinearProgressIndicator(
+                            value: _loadProgress / 100,
+                            backgroundColor: const Color(0xFF1E1E2E),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFF00C386),
+                            ),
+                            minHeight: 3,
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 )
               : null,

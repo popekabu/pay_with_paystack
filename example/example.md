@@ -69,10 +69,10 @@ class PaymentPage extends StatelessWidget {
       amount: 50.00,
       callbackUrl: 'https://your-callback.com',
       transactionCompleted: (PaymentData data) {
-        debugPrint('✅ Paid: ${data.amountInMajorUnit} ${data.currency}');
+        debugPrint('[OK] Paid: ${data.amountInMajorUnit} ${data.currency}');
       },
       transactionNotCompleted: (String reason) {
-        debugPrint('❌ Not completed: $reason');
+        debugPrint('[FAIL] Not completed: $reason');
       },
     );
   }
@@ -127,7 +127,7 @@ class PaymentPage extends StatelessWidget {
       appBarTextColor: Colors.white,
 
       transactionCompleted: (PaymentData data) {
-        debugPrint('✅ Payment successful!');
+        debugPrint('[OK] Payment successful!');
         debugPrint('   Reference : ${data.reference}');
         debugPrint('   Amount    : ${data.amountInMajorUnit} ${data.currency}');
         debugPrint('   Channel   : ${data.channel}');
@@ -137,7 +137,7 @@ class PaymentPage extends StatelessWidget {
       },
 
       transactionNotCompleted: (String reason) {
-        debugPrint('❌ Payment not completed: $reason');
+        debugPrint('[FAIL] Payment not completed: $reason');
       },
     );
   }
@@ -159,11 +159,11 @@ class PaymentPage extends StatelessWidget {
       bearer: PaystackBearer.account, // main account bears Paystack fees
 
       transactionCompleted: (PaymentData data) {
-        debugPrint('✅ Split payment done: ${data.reference}');
+        debugPrint('[OK] Split payment done: ${data.reference}');
       },
 
       transactionNotCompleted: (String reason) {
-        debugPrint('❌ Not completed: $reason');
+        debugPrint('[FAIL] Not completed: $reason');
       },
     );
   }

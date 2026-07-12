@@ -68,16 +68,22 @@ class PaystackCartItem {
   /// Number of units purchased. Defaults to `1`.
   final int quantity;
 
+  /// Optional URL for the product image. Shown on the Paystack Dashboard
+  /// when viewing the transaction's metadata.
+  final String? imageUrl;
+
   const PaystackCartItem({
     required this.name,
     required this.amount,
     this.quantity = 1,
+    this.imageUrl,
   });
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'amount': (amount * 100).toStringAsFixed(0),
         'quantity': quantity,
+        if (imageUrl != null) 'image': imageUrl,
       };
 
   @override
