@@ -78,6 +78,29 @@ class PaystackPayNow extends StatefulWidget {
   final Widget? loadingWidget;
   final Widget Function(String error, VoidCallback retry)? errorWidget;
 
+  /// Custom logo widget shown in the AppBar and loading screen.
+  /// Accepts any widget — [Image.asset], [Image.network], an SVG, etc.
+  final Widget? logoWidget;
+
+  // ── Detailed Styling & Text overrides (Web-specific, stubbed here for compatibility) ──
+  final Color? backgroundColor;
+  final Color? cardBackgroundColor;
+  final Color? cardBorderColor;
+  final Color? primaryTextColor;
+  final Color? secondaryTextColor;
+  final Color? buttonTextColor;
+  final String? connectingText;
+  final String? waitingTitleText;
+  final String? waitingSubtitleText;
+  final String? step1Text;
+  final String? step2Text;
+  final String? step3Text;
+  final String? completedButtonText;
+  final String? reopenButtonText;
+  final String? cancelButtonText;
+  final String? verifyingText;
+  final String? verifyingSubtitleText;
+
   /// Accent color used for the loading indicator, linear progress bar,
   /// verification spinner, and the "Try Again" button.
   ///
@@ -137,6 +160,24 @@ class PaystackPayNow extends StatefulWidget {
     this.timeout = const Duration(seconds: 30),
     this.enableLogging = false,
     this.onTimeout,
+    this.logoWidget,
+    this.backgroundColor,
+    this.cardBackgroundColor,
+    this.cardBorderColor,
+    this.primaryTextColor,
+    this.secondaryTextColor,
+    this.buttonTextColor,
+    this.connectingText,
+    this.waitingTitleText,
+    this.waitingSubtitleText,
+    this.step1Text,
+    this.step2Text,
+    this.step3Text,
+    this.completedButtonText,
+    this.reopenButtonText,
+    this.cancelButtonText,
+    this.verifyingText,
+    this.verifyingSubtitleText,
   }) : super(key: key);
 
   @override
@@ -187,6 +228,17 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       debugPrint('[PayWithPaystack] $message');
     }
   }
+
+  // ── Logo ───────────────────────────────────────────────────────────────────
+
+  /// Returns the caller-supplied logo, or `null` when [widget.logoWidget] was not provided.
+  Widget? _buildLogoWidget(double size) {
+    if (widget.logoWidget != null) {
+      return SizedBox(width: size, height: size, child: widget.logoWidget);
+    }
+    return null;
+  }
+
 
   // ── Network ────────────────────────────────────────────────────────────────
 
@@ -397,27 +449,28 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       return Scaffold(body: Center(child: widget.loadingWidget!));
     }
     final accent = widget.progressColor ?? const Color(0xFF00C386);
+    final logo = _buildLogoWidget(48);
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ScaleTransition(
-              scale: _pulseAnimation,
-              child: Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: _PaystackLogo(color: accent),
+            if (logo != null) ...[
+              ScaleTransition(
+                scale: _pulseAnimation,
+                child: Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(child: logo),
                 ),
               ),
-            ),
-            const SizedBox(height: 28),
+              const SizedBox(height: 28),
+            ],
             SizedBox(
               width: 24,
               height: 24,
@@ -588,6 +641,7 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
     final appBarBgColor = widget.appBarColor ?? const Color(0xFF0A0A1A);
     final appBarFgColor = widget.appBarTextColor ?? Colors.white;
+    final appBarLogo = _buildLogoWidget(20);
 
     return Stack(
       children: [
@@ -601,8 +655,10 @@ class _PaystackPayNowState extends State<PaystackPayNow>
                   automaticallyImplyLeading: false,
                   title: Row(
                     children: [
-                      const _PaystackLogo(size: 20),
-                      const SizedBox(width: 10),
+                      if (appBarLogo != null) ...[
+                        appBarLogo,
+                        const SizedBox(width: 10),
+                      ],
                       Text(
                         widget.appBarTitle,
                         style: TextStyle(
@@ -686,68 +742,4 @@ class _PaystackPayNowState extends State<PaystackPayNow>
   }
 }
 
-// ── Shared Paystack logo widget ─────────────────────────────────────────────
 
-class _PaystackLogo extends StatelessWidget {
-  final double size;
-  final Color color;
-  const _PaystackLogo({
-    this.size = 40,
-    this.color = const Color(0xFF00C386),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(painter: _LogoPainter(color: color)),
-    );
-  }
-}
-
-class _LogoPainter extends CustomPainter {
-  final Color color;
-  const _LogoPainter({this.color = const Color(0xFF00C386)});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    // Draw a simple stylised "P" mark in the Paystack green
-    final path = Path()
-      ..moveTo(size.width * 0.2, size.height * 0.15)
-      ..lineTo(size.width * 0.2, size.height * 0.85)
-      ..lineTo(size.width * 0.38, size.height * 0.85)
-      ..lineTo(size.width * 0.38, size.height * 0.58)
-      ..quadraticBezierTo(size.width * 0.9, size.height * 0.55,
-          size.width * 0.9, size.height * 0.36)
-      ..quadraticBezierTo(size.width * 0.9, size.height * 0.15,
-          size.width * 0.38, size.height * 0.15)
-      ..close();
-
-    canvas.drawPath(path, paint);
-
-    // Inner cutout to form the "bowl" of the P
-    final cutout = Paint()
-      ..color = color.withValues(alpha: 0)
-      ..blendMode = BlendMode.clear;
-    final innerPath = Path()
-      ..moveTo(size.width * 0.38, size.height * 0.27)
-      ..lineTo(size.width * 0.72, size.height * 0.27)
-      ..quadraticBezierTo(size.width * 0.78, size.height * 0.36,
-          size.width * 0.72, size.height * 0.46)
-      ..lineTo(size.width * 0.38, size.height * 0.46)
-      ..close();
-
-    canvas.saveLayer(Offset.zero & size, Paint());
-    canvas.drawPath(path, paint);
-    canvas.drawPath(innerPath, cutout);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _LogoPainter old) => old.color != color;
-}

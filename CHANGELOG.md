@@ -1,4 +1,27 @@
+## 1.6.0
+
+### New Platform: Flutter Web
+
+- **Flutter Web support**: `PayWithPayStack().now()` works on web with the same signature.
+- On web, the Paystack checkout page opens in a **new browser tab** (embedded WebViews are not available on Flutter Web).
+- A branded full-screen waiting page is shown while the user completes payment in the new tab. It displays the payment summary (amount, email, reference) and guides the user through the process.
+- Once the user returns and taps **"I've completed payment"**, the transaction is verified server-side and the appropriate callback fires automatically.
+- A **"Reopen checkout tab"** button is available in case the user accidentally closes the Paystack tab before finishing.
+- The web checkout UI is **responsive**: on wide screens (≥ 640 px) the content is centred in a card layout; on narrow screens it renders edge-to-edge.
+- **Scrollable Web Layout**: Wrapped the web card inside a `SingleChildScrollView` on wide screens to prevent overflow on shorter browser windows/screens.
+- Added `url_launcher` as a dependency to support opening URLs on web.
+
+### UI Customization on Web
+
+- **Full Customizability**: Added properties to customize the web payment waiting page entirely.
+  - Colors/Backgrounds: `backgroundColor`, `cardBackgroundColor`, `cardBorderColor`, `primaryTextColor`, `secondaryTextColor`, `buttonTextColor`.
+  - Texts: `connectingText`, `waitingTitleText`, `waitingSubtitleText`, `step1Text`, `step2Text`, `step3Text`, `completedButtonText`, `reopenButtonText`, `cancelButtonText`, `verifyingText`, `verifyingSubtitleText`.
+- **Flexible Logo Widget**: Replaced `logoUrl` parameter with `logoWidget` (e.g. `logoWidget: Image.network(...)` or local asset `logoWidget: Image.asset(...)` to seamlessly bypass CORS limits and rendering issues on Flutter Web).
+
+---
+
 ## 1.5.0
+
 
 ### New Features
 

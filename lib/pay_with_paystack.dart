@@ -10,7 +10,7 @@ import 'package:pay_with_paystack/model/paystack_channel.dart';
 import 'package:pay_with_paystack/model/paystack_config.dart';
 import 'package:pay_with_paystack/model/paystack_exception.dart';
 import 'package:pay_with_paystack/model/paystack_metadata.dart';
-import 'package:pay_with_paystack/src/paystack_pay_now.dart';
+import 'package:pay_with_paystack/src/paystack_checkout.dart';
 import 'package:uuid/uuid.dart';
 
 export 'package:pay_with_paystack/model/authorization.dart';
@@ -172,6 +172,25 @@ class PayWithPayStack {
   ///   Defaults to `Color(0xFF1E1E2E)`.
   /// - [loadingWidget] — custom widget while the session initialises.
   /// - [errorWidget] — custom error screen builder (receives error + retry).
+  /// - [logoWidget] — custom logo widget shown in the AppBar, loading screen,
+  ///   and waiting screen.
+  /// - [backgroundColor] — main Scaffold background color on web.
+  /// - [cardBackgroundColor] — Web checkout card background color.
+  /// - [cardBorderColor] — Web checkout card border color.
+  /// - [primaryTextColor] — Web checkout main text color.
+  /// - [secondaryTextColor] — Web checkout secondary/description text color.
+  /// - [buttonTextColor] — Web checkout primary action button text color.
+  /// - [connectingText] — text shown while initialising.
+  /// - [waitingTitleText] — title shown on the waiting card.
+  /// - [waitingSubtitleText] — subtitle/desc shown on the waiting card.
+  /// - [step1Text] — text for Step 1.
+  /// - [step2Text] — text for Step 2.
+  /// - [step3Text] — text for Step 3.
+  /// - [completedButtonText] — label for the primary completion button.
+  /// - [reopenButtonText] — label for the reopen tab link.
+  /// - [cancelButtonText] — label for the cancel payment link.
+  /// - [verifyingText] — text shown while verifying.
+  /// - [verifyingSubtitleText] — subtitle shown while verifying.
   Future<PaymentData?> now({
     // ── Required ─────────────────────────────────────────────────────────────
     required BuildContext context,
@@ -251,6 +270,30 @@ class PayWithPayStack {
 
     Widget? loadingWidget,
     Widget Function(String error, VoidCallback retry)? errorWidget,
+
+    // ── Logo ──────────────────────────────────────────────────────────────────
+    /// Custom logo widget displayed in the AppBar and loading/waiting screens.
+    /// Accepts any widget — [Image.asset], [Image.network], an SVG, etc.
+    Widget? logoWidget,
+
+    // ── Detailed Styling & Text overrides (Web-specific, with stubs for Mobile) ──
+    Color? backgroundColor,
+    Color? cardBackgroundColor,
+    Color? cardBorderColor,
+    Color? primaryTextColor,
+    Color? secondaryTextColor,
+    Color? buttonTextColor,
+    String? connectingText,
+    String? waitingTitleText,
+    String? waitingSubtitleText,
+    String? step1Text,
+    String? step2Text,
+    String? step3Text,
+    String? completedButtonText,
+    String? reopenButtonText,
+    String? cancelButtonText,
+    String? verifyingText,
+    String? verifyingSubtitleText,
   }) {
     // Resolve values: direct param > global config > error.
     final resolvedKey = secretKey ?? _globalConfig?.secretKey;
@@ -339,6 +382,24 @@ class PayWithPayStack {
           progressBackgroundColor: progressBackgroundColor,
           loadingWidget: loadingWidget,
           errorWidget: errorWidget,
+          logoWidget: logoWidget,
+          backgroundColor: backgroundColor,
+          cardBackgroundColor: cardBackgroundColor,
+          cardBorderColor: cardBorderColor,
+          primaryTextColor: primaryTextColor,
+          secondaryTextColor: secondaryTextColor,
+          buttonTextColor: buttonTextColor,
+          connectingText: connectingText,
+          waitingTitleText: waitingTitleText,
+          waitingSubtitleText: waitingSubtitleText,
+          step1Text: step1Text,
+          step2Text: step2Text,
+          step3Text: step3Text,
+          completedButtonText: completedButtonText,
+          reopenButtonText: reopenButtonText,
+          cancelButtonText: cancelButtonText,
+          verifyingText: verifyingText,
+          verifyingSubtitleText: verifyingSubtitleText,
           timeout: resolvedTimeout,
           enableLogging: resolvedLogging,
           onTimeout: onTimeout,
