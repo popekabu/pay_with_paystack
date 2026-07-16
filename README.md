@@ -322,8 +322,11 @@ PayWithPayStack().now(
 
 ## Customising the Checkout UI
 
+Customize the look, colors, and display texts of your checkout (especially on Flutter Web where the full checkout waiting state is rendered within your app UI):
+
 ```dart
 PayWithPayStack().now(
+  context: context,
   // ...
   showAppBar: true,
   appBarTitle: 'Pay Now',
@@ -331,8 +334,32 @@ PayWithPayStack().now(
   appBarTextColor: Colors.white,
 
   // Accent color for loading spinner, progress bar, and "Try Again" button
-  progressColor: progressColor,                   // e.g. Color(0xFF6C63FF) (defaults to Paystack green)
-  progressBackgroundColor: progressBackgroundColor, // e.g. Color(0xFF1E1E2E) (progress bar track color)
+  progressColor: const Color(0xFF00C386),
+  progressBackgroundColor: const Color(0xFF1E1E2E),
+
+  // Web background and card containers customisation
+  backgroundColor: const Color(0xFF07071A),
+  cardBackgroundColor: const Color(0xFF0F0F24),
+  cardBorderColor: const Color(0xFF1E1E38),
+  primaryTextColor: Colors.white,
+  secondaryTextColor: Colors.white70,
+  buttonTextColor: Colors.black,
+
+  // Web text overrides
+  connectingText: 'Connecting to Paystack...',
+  waitingTitleText: 'Complete your payment',
+  waitingSubtitleText: 'A checkout page has opened in a new tab.',
+  step1Text: 'Complete payment in the new tab',
+  step2Text: 'Return here when done',
+  step3Text: 'Tap the confirmation button below',
+  completedButtonText: "I've completed payment",
+  reopenButtonText: 'Reopen payment tab',
+  cancelButtonText: 'Cancel payment',
+  verifyingText: 'Confirming your payment...',
+  verifyingSubtitleText: 'Please wait while we verify your transaction.',
+
+  // Custom logo widget (replaces deprecated logoUrl to support CORS-safe image assets or icons)
+  logoWidget: Image.asset('assets/images/logo.png'),
 
   // Custom loading screen (replaces default pulsing loader)
   loadingWidget: const Center(
@@ -501,6 +528,24 @@ try {
 | `progressBackgroundColor`  | `Color?`                                 | ❌       | `Color(0xFF1E1E2E)`  |
 | `loadingWidget`            | `Widget?`                                | ❌       | branded loader       |
 | `errorWidget`              | `Widget Function(String, VoidCallback)?` | ❌       | branded error UI     |
+| `logoWidget`               | `Widget?`                                | ❌       | `null`               |
+| `backgroundColor`          | `Color?`                                 | ❌       | `Color(0xFF07071A)`  |
+| `cardBackgroundColor`      | `Color?`                                 | ❌       | `Color(0xFF0F0F24)`  |
+| `cardBorderColor`          | `Color?`                                 | ❌       | `Color(0xFF1E1E38)`  |
+| `primaryTextColor`         | `Color?`                                 | ❌       | `Colors.white`       |
+| `secondaryTextColor`       | `Color?`                                 | ❌       | `Colors.white70`     |
+| `buttonTextColor`          | `Color?`                                 | ❌       | `Colors.black`       |
+| `connectingText`           | `String?`                                | ❌       | `'Connecting to Paystack…'` |
+| `waitingTitleText`         | `String?`                                | ❌       | `'Complete your payment'` |
+| `waitingSubtitleText`      | `String?`                                | ❌       | `'A Paystack checkout page has opened in a new tab.'` |
+| `step1Text`                | `String?`                                | ❌       | `'Complete payment in the Paystack tab'` |
+| `step2Text`                | `String?`                                | ❌       | `'Return to this tab when done'` |
+| `step3Text`                | `String?`                                | ❌       | `'Tap "I\'ve completed payment" below'` |
+| `completedButtonText`      | `String?`                                | ❌       | `'I\'ve completed payment'` |
+| `reopenButtonText`         | `String?`                                | ❌       | `'Reopen checkout tab'` |
+| `cancelButtonText`         | `String?`                                | ❌       | `'Cancel payment'` |
+| `verifyingText`            | `String?`                                | ❌       | `'Verifying transaction…'` |
+| `verifyingSubtitleText`    | `String?`                                | ❌       | `'Please wait while we confirm your payment with Paystack.'` |
 
 \* Required if no global config has been set via `PayWithPayStack.configure()`.
 
