@@ -583,8 +583,16 @@ try {
 
 ## Screenshots
 
-<img alt="" src="https://user-images.githubusercontent.com/26738997/192014501-035de07d-1130-49b6-895c-32c3182676cf.png" width=300/> <img alt="" src="https://user-images.githubusercontent.com/26738997/192014543-82674864-2851-4b2b-9f92-be73aa370702.png" width=300/>
-<img alt="" src="https://user-images.githubusercontent.com/26738997/192014596-0396ee68-febf-4bf9-8d74-30253c9c94fe.png" width=300/> <img alt="" src="https://user-images.githubusercontent.com/26738997/192014634-a74376f8-7e96-4842-a133-58196f146b61.png" width=300/>
+### Mobile Checkout
+
+<img alt="Mobile Checkout 1" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/0.png" width=240/> <img alt="Mobile Checkout 2" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/1.png" width=240/> <img alt="Mobile Checkout 3" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/2.png" width=240/> <img alt="Mobile Checkout 4" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/3.png" width=240/>
+
+### Web Checkout
+
+<img alt="Web Checkout 1" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/4.png" width=600/>
+<img alt="Web Checkout 2" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/5.png" width=600/>
+<img alt="Web Checkout 3" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/6.png" width=600/>
+<img alt="Web Checkout 4" src="https://raw.githubusercontent.com/popekabu/pay_with_paystack/master/images/7.png" width=600/>
 
 ---
 
