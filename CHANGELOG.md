@@ -1,3 +1,12 @@
+## 1.6.1
+
+### Documentation
+
+- Updated the `README.md` to document all new Web styling and text customization parameters with their exact defaults.
+- Replaced the HEIC format screenshots with PNG equivalents in the repository and updated the README screenshots section.
+
+---
+
 ## 1.6.0
 
 ### New Platform: Flutter Web
