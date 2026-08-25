@@ -445,11 +445,11 @@ if (previousPaymentData.authorization?.reusable == true) {
 
 ---
 
-## Bulk Charges
+## Bulk Charges (Bulk Payment)
 
-`PaystackBulkChargeItem` is a data model for building a bulk charge batch.
-Serialise a list of items and post to Paystack's `POST /bulkcharge` endpoint
-yourself:
+Charge multiple saved customer authorizations in a single batch request using Paystack's Bulk Charges API.
+
+### 1. Initiate a Bulk Charge Batch
 
 ```dart
 final items = [
@@ -467,8 +467,63 @@ final items = [
   ),
 ];
 
-// Serialise for the Paystack API:
-final body = jsonEncode(items.map((i) => i.toJson()).toList());
+// Initiate the batch:
+final batch = await PayWithPayStack().bulkCharge(
+  items: items,
+  secretKey: 'sk_live_xxxx', // optional if PayWithPayStack.configure() was called
+  batchInitiated: (batch) => print('Batch queued: ${batch.batchCode}'),
+  batchFailed: (reason) => print('Batch failed: $reason'),
+);
+
+print('Status: ${batch?.status}'); // 'pending' or 'processing'
+print('Batch Code: ${batch?.batchCode}');
+```
+
+### 2. Check Batch Status
+
+Paystack processes bulk charges asynchronously. Fetch current batch status and progress anytime:
+
+```dart
+final batch = await PayWithPayStack().fetchBulkChargeBatch(
+  batchCodeOrId: 'BCH_1878848492023',
+);
+
+if (batch != null) {
+  print('Status: ${batch.status}');
+  print('Total charges: ${batch.totalCharges}');
+  print('Pending: ${batch.pendingCharges}');
+  print('Is complete: ${batch.isComplete}');
+}
+```
+
+### 3. Fetch Charges in a Batch
+
+Retrieve individual charge records and their transaction outcomes:
+
+```dart
+final charges = await PayWithPayStack().fetchBulkChargeBatchCharges(
+  batchCodeOrId: 'BCH_1878848492023',
+  status: 'success', // optional: 'pending', 'success', 'failed'
+  perPage: 50,       // optional
+);
+
+for (final charge in charges ?? []) {
+  print('Charge status: ${charge['transaction']?['status']}');
+}
+```
+
+### 4. Pause or Resume a Batch
+
+```dart
+// Pause an active batch:
+final paused = await PayWithPayStack().pauseBulkChargeBatch(
+  batchCode: 'BCH_1878848492023',
+);
+
+// Resume a paused batch:
+final resumed = await PayWithPayStack().resumeBulkChargeBatch(
+  batchCode: 'BCH_1878848492023',
+);
 ```
 
 ---

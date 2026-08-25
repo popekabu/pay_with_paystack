@@ -358,4 +358,181 @@ void main() {
       expect(json['amount'], '150');
     });
   });
+
+  // ── PaystackBulkChargeItem ─────────────────────────────────────────────────
+  group('PaystackBulkChargeItem', () {
+    const itemWithEmail = PaystackBulkChargeItem(
+      authorizationCode: 'AUTH_abc123',
+      amount: 50.00,
+      reference: 'ref_001',
+      email: 'customer@example.com',
+    );
+
+    const itemWithoutEmail = PaystackBulkChargeItem(
+      authorizationCode: 'AUTH_xyz789',
+      amount: 12.50,
+      reference: 'ref_002',
+    );
+
+    test('toJson serializes correctly with email', () {
+      final json = itemWithEmail.toJson();
+      expect(json['authorization'], 'AUTH_abc123');
+      expect(json['amount'], '5000');
+      expect(json['reference'], 'ref_001');
+      expect(json['email'], 'customer@example.com');
+    });
+
+    test('toJson serializes correctly without email', () {
+      final json = itemWithoutEmail.toJson();
+      expect(json['authorization'], 'AUTH_xyz789');
+      expect(json['amount'], '1250');
+      expect(json['reference'], 'ref_002');
+      expect(json.containsKey('email'), isFalse);
+    });
+
+    test('fromJson deserializes subunit integer amounts correctly', () {
+      final item = PaystackBulkChargeItem.fromJson({
+        'authorization': 'AUTH_test',
+        'amount': 2500,
+        'reference': 'ref_test',
+        'email': 'test@example.com',
+      });
+      expect(item.authorizationCode, 'AUTH_test');
+      expect(item.amount, 25.0);
+      expect(item.reference, 'ref_test');
+      expect(item.email, 'test@example.com');
+    });
+
+    test('fromJson handles authorization_code alias', () {
+      final item = PaystackBulkChargeItem.fromJson({
+        'authorization_code': 'AUTH_alias',
+        'amount': '1000',
+        'reference': 'ref_alias',
+      });
+      expect(item.authorizationCode, 'AUTH_alias');
+      expect(item.amount, 10.0);
+    });
+
+    test('toString contains key details', () {
+      expect(itemWithEmail.toString(), contains('AUTH_abc123'));
+      expect(itemWithEmail.toString(), contains('50.0'));
+      expect(itemWithEmail.toString(), contains('ref_001'));
+    });
+  });
+
+  // ── PaystackBulkChargeBatch ────────────────────────────────────────────────
+  group('PaystackBulkChargeBatch', () {
+    final batchJson = {
+      'batch_code': 'BCH_1878848492023',
+      'reference': '1878848492023',
+      'unit': 2,
+      'status': 'pending',
+      'total_charges': 2,
+      'pending_charges': 2,
+      'id': 12345,
+      'integration': 100073,
+      'createdAt': '2020-03-24T15:20:09.000Z',
+      'updatedAt': '2020-03-24T15:20:09.000Z',
+    };
+
+    test('fromJson parses all fields correctly', () {
+      final batch = PaystackBulkChargeBatch.fromJson(batchJson);
+      expect(batch.batchCode, 'BCH_1878848492023');
+      expect(batch.reference, '1878848492023');
+      expect(batch.status, 'pending');
+      expect(batch.unit, 2);
+      expect(batch.totalCharges, 2);
+      expect(batch.pendingCharges, 2);
+      expect(batch.id, 12345);
+      expect(batch.integration, 100073);
+      expect(batch.createdAt, '2020-03-24T15:20:09.000Z');
+    });
+
+    test('status getters reflect current status accurately', () {
+      const pendingBatch = PaystackBulkChargeBatch(status: 'pending');
+      expect(pendingBatch.isPending, isTrue);
+      expect(pendingBatch.isProcessing, isFalse);
+      expect(pendingBatch.isComplete, isFalse);
+
+      const processingBatch = PaystackBulkChargeBatch(status: 'processing');
+      expect(processingBatch.isProcessing, isTrue);
+
+      const completeBatch = PaystackBulkChargeBatch(status: 'complete');
+      expect(completeBatch.isComplete, isTrue);
+
+      const pausedBatch = PaystackBulkChargeBatch(status: 'paused');
+      expect(pausedBatch.isPaused, isTrue);
+
+      const failedBatch = PaystackBulkChargeBatch(status: 'failed');
+      expect(failedBatch.isFailed, isTrue);
+    });
+
+    test('toJson serializes correctly', () {
+      final batch = PaystackBulkChargeBatch.fromJson(batchJson);
+      final json = batch.toJson();
+      expect(json['batch_code'], 'BCH_1878848492023');
+      expect(json['total_charges'], 2);
+      expect(json['status'], 'pending');
+    });
+
+    test('toString formats correctly', () {
+      final batch = PaystackBulkChargeBatch.fromJson(batchJson);
+      expect(batch.toString(), contains('BCH_1878848492023'));
+      expect(batch.toString(), contains('pending'));
+    });
+  });
+
+  // ── PayWithPayStack Bulk Charge assertions ──────────────────────────────────
+  group('PayWithPayStack bulkCharge validation', () {
+    setUp(() {
+      PayWithPayStack.clearConfig();
+    });
+
+    test('asserts when secretKey is missing and no global config is set', () {
+      expect(
+        () => PayWithPayStack().bulkCharge(
+          items: [
+            const PaystackBulkChargeItem(
+              authorizationCode: 'AUTH_xxx',
+              amount: 10,
+              reference: 'ref_1',
+            ),
+          ],
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('asserts when items list is empty', () {
+      expect(
+        () => PayWithPayStack().bulkCharge(
+          secretKey: 'sk_test_123',
+          items: [],
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('fetchBulkChargeBatch asserts when secretKey is missing', () {
+      expect(
+        () => PayWithPayStack().fetchBulkChargeBatch(batchCodeOrId: 'BCH_123'),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('pauseBulkChargeBatch asserts when secretKey is missing', () {
+      expect(
+        () => PayWithPayStack().pauseBulkChargeBatch(batchCode: 'BCH_123'),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('resumeBulkChargeBatch asserts when secretKey is missing', () {
+      expect(
+        () => PayWithPayStack().resumeBulkChargeBatch(batchCode: 'BCH_123'),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+  });
 }
+

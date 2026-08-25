@@ -1,3 +1,17 @@
+## 1.7.0
+
+### New Features
+
+- **Bulk Charges (Bulk Payment)**:
+  - Added `PayWithPayStack().bulkCharge()` to initiate bulk charges on multiple saved authorizations in a single request.
+  - Added `PaystackBulkChargeBatch` model representing batch statuses, counts, and helpers (`isPending`, `isProcessing`, `isComplete`, `isPaused`, `isFailed`).
+  - Added `PayWithPayStack().fetchBulkChargeBatch()` to check the status and metrics of a batch.
+  - Added `PayWithPayStack().fetchBulkChargeBatchCharges()` to query individual charges and status within a batch.
+  - Added `PayWithPayStack().pauseBulkChargeBatch()` and `PayWithPayStack().resumeBulkChargeBatch()` to manage active batches.
+  - Enhanced `PaystackBulkChargeItem` with `fromJson` and flexible JSON formatting.
+
+---
+
 ## 1.6.1
 
 ### Documentation

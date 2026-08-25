@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pay_with_paystack/model/payment_data.dart';
 import 'package:pay_with_paystack/model/paystack_bearer.dart';
+import 'package:pay_with_paystack/model/paystack_bulk_charge.dart';
 import 'package:pay_with_paystack/model/paystack_channel.dart';
 import 'package:pay_with_paystack/model/paystack_config.dart';
 import 'package:pay_with_paystack/model/paystack_exception.dart';
@@ -517,6 +518,364 @@ class PayWithPayStack {
 
     throw PaystackException(
       message: 'Charge authorization failed',
+      statusCode: response.statusCode,
+      responseBody: response.body,
+    );
+  }
+
+  // ── bulkCharge() ───────────────────────────────────────────────────────────
+
+  /// Initiates a bulk charge batch for multiple saved card authorizations in a
+  /// single API call.
+  ///
+  /// Paystack processes bulk charges asynchronously in the background. This method
+  /// queues the batch with Paystack and returns the initial [PaystackBulkChargeBatch]
+  /// status (usually `pending`).
+  ///
+  /// To monitor or inspect batch progress, use [fetchBulkChargeBatch] or listen
+  /// for Paystack webhooks (`bulk_charge.processed`).
+  ///
+  /// ## Example
+  /// ```dart
+  /// final batch = await PayWithPayStack().bulkCharge(
+  ///   secretKey: 'sk_live_xxxx',
+  ///   items: [
+  ///     PaystackBulkChargeItem(
+  ///       authorizationCode: 'AUTH_111',
+  ///       amount: 50.0,
+  ///       reference: PayWithPayStack().generateUuidV4(),
+  ///       email: 'user1@example.com',
+  ///     ),
+  ///     PaystackBulkChargeItem(
+  ///       authorizationCode: 'AUTH_222',
+  ///       amount: 25.0,
+  ///       reference: PayWithPayStack().generateUuidV4(),
+  ///       email: 'user2@example.com',
+  ///     ),
+  ///   ],
+  ///   batchInitiated: (batch) => print('Queued batch: ${batch.batchCode}'),
+  ///   batchFailed: (reason) => print('Failed: $reason'),
+  /// );
+  /// ```
+  Future<PaystackBulkChargeBatch?> bulkCharge({
+    required List<PaystackBulkChargeItem> items,
+    void Function(PaystackBulkChargeBatch batch)? batchInitiated,
+    void Function(String reason)? batchFailed,
+    String? secretKey,
+    Duration? timeout,
+    bool? enableLogging,
+  }) async {
+    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedTimeout =
+        timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
+    final resolvedLogging =
+        enableLogging ?? _globalConfig?.enableLogging ?? false;
+
+    assert(
+      resolvedKey != null,
+      'secretKey must be provided either directly or via PayWithPayStack.configure().',
+    );
+    assert(
+      items.isNotEmpty,
+      'items list cannot be empty when initiating a bulk charge.',
+    );
+
+    void log(String msg) {
+      if (resolvedLogging) debugPrint('[PayWithPaystack] $msg');
+    }
+
+    final requestBody = items.map((i) => i.toJson()).toList();
+
+    log('→ POST /bulkcharge');
+    log('  items count: ${items.length}');
+    log('  body: ${jsonEncode(requestBody)}');
+
+    http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse('https://api.paystack.co/bulkcharge'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $resolvedKey',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(resolvedTimeout);
+    } on Exception catch (e) {
+      log('[ERROR] $e');
+      batchFailed?.call('network_error: ${e.toString()}');
+      return null;
+    }
+
+    log('← ${response.statusCode} ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (decoded['status'] == true && decoded['data'] != null) {
+        final batch = PaystackBulkChargeBatch.fromJson(
+          decoded['data'] as Map<String, dynamic>,
+        );
+        batchInitiated?.call(batch);
+        return batch;
+      } else {
+        final msg = decoded['message']?.toString() ??
+            'Bulk charge initiation failed';
+        batchFailed?.call(msg);
+        return null;
+      }
+    }
+
+    throw PaystackException(
+      message: 'Bulk charge initiation failed',
+      statusCode: response.statusCode,
+      responseBody: response.body,
+    );
+  }
+
+  // ── fetchBulkChargeBatch() ─────────────────────────────────────────────────
+
+  /// Retrieves the current status and metrics of a bulk charge batch.
+  ///
+  /// [batchCodeOrId] can be the batch code (e.g. `BCH_1878848492023`) or integer ID.
+  Future<PaystackBulkChargeBatch?> fetchBulkChargeBatch({
+    required String batchCodeOrId,
+    String? secretKey,
+    Duration? timeout,
+    bool? enableLogging,
+  }) async {
+    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedTimeout =
+        timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
+    final resolvedLogging =
+        enableLogging ?? _globalConfig?.enableLogging ?? false;
+
+    assert(
+      resolvedKey != null,
+      'secretKey must be provided either directly or via PayWithPayStack.configure().',
+    );
+
+    void log(String msg) {
+      if (resolvedLogging) debugPrint('[PayWithPaystack] $msg');
+    }
+
+    log('→ GET /bulkcharge/$batchCodeOrId');
+
+    http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('https://api.paystack.co/bulkcharge/$batchCodeOrId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $resolvedKey',
+        },
+      ).timeout(resolvedTimeout);
+    } on Exception catch (e) {
+      log('[ERROR] $e');
+      return null;
+    }
+
+    log('← ${response.statusCode} ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (decoded['status'] == true && decoded['data'] != null) {
+        return PaystackBulkChargeBatch.fromJson(
+          decoded['data'] as Map<String, dynamic>,
+        );
+      }
+      return null;
+    }
+
+    throw PaystackException(
+      message: 'Fetch bulk charge batch failed',
+      statusCode: response.statusCode,
+      responseBody: response.body,
+    );
+  }
+
+  // ── fetchBulkChargeBatchCharges() ──────────────────────────────────────────
+
+  /// Retrieves the list of individual charges associated with a bulk charge batch.
+  ///
+  /// Optional filters:
+  /// - [status]: Filter charges by status (`pending`, `success`, `failed`).
+  /// - [perPage]: Number of records per page (default 50).
+  /// - [page]: Specific page number to retrieve.
+  Future<List<Map<String, dynamic>>?> fetchBulkChargeBatchCharges({
+    required String batchCodeOrId,
+    String? status,
+    int? perPage,
+    int? page,
+    String? secretKey,
+    Duration? timeout,
+    bool? enableLogging,
+  }) async {
+    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedTimeout =
+        timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
+    final resolvedLogging =
+        enableLogging ?? _globalConfig?.enableLogging ?? false;
+
+    assert(
+      resolvedKey != null,
+      'secretKey must be provided either directly or via PayWithPayStack.configure().',
+    );
+
+    void log(String msg) {
+      if (resolvedLogging) debugPrint('[PayWithPaystack] $msg');
+    }
+
+    final queryParams = <String, String>{
+      if (status != null) 'status': status,
+      if (perPage != null) 'perPage': perPage.toString(),
+      if (page != null) 'page': page.toString(),
+    };
+
+    final uri = Uri.https(
+      'api.paystack.co',
+      '/bulkcharge/$batchCodeOrId/charges',
+      queryParams.isEmpty ? null : queryParams,
+    );
+
+    log('→ GET $uri');
+
+    http.Response response;
+    try {
+      response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $resolvedKey',
+        },
+      ).timeout(resolvedTimeout);
+    } on Exception catch (e) {
+      log('[ERROR] $e');
+      return null;
+    }
+
+    log('← ${response.statusCode} ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (decoded['status'] == true && decoded['data'] is List) {
+        return (decoded['data'] as List)
+            .whereType<Map<String, dynamic>>()
+            .toList();
+      }
+      return [];
+    }
+
+    throw PaystackException(
+      message: 'Fetch bulk charge batch charges failed',
+      statusCode: response.statusCode,
+      responseBody: response.body,
+    );
+  }
+
+  // ── pauseBulkChargeBatch() ─────────────────────────────────────────────────
+
+  /// Pauses processing of an active bulk charge batch.
+  Future<bool> pauseBulkChargeBatch({
+    required String batchCode,
+    String? secretKey,
+    Duration? timeout,
+    bool? enableLogging,
+  }) async {
+    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedTimeout =
+        timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
+    final resolvedLogging =
+        enableLogging ?? _globalConfig?.enableLogging ?? false;
+
+    assert(
+      resolvedKey != null,
+      'secretKey must be provided either directly or via PayWithPayStack.configure().',
+    );
+
+    void log(String msg) {
+      if (resolvedLogging) debugPrint('[PayWithPaystack] $msg');
+    }
+
+    log('→ GET /bulkcharge/pause/$batchCode');
+
+    http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('https://api.paystack.co/bulkcharge/pause/$batchCode'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $resolvedKey',
+        },
+      ).timeout(resolvedTimeout);
+    } on Exception catch (e) {
+      log('[ERROR] $e');
+      return false;
+    }
+
+    log('← ${response.statusCode} ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      return decoded['status'] == true;
+    }
+
+    throw PaystackException(
+      message: 'Pause bulk charge batch failed',
+      statusCode: response.statusCode,
+      responseBody: response.body,
+    );
+  }
+
+  // ── resumeBulkChargeBatch() ────────────────────────────────────────────────
+
+  /// Resumes processing of a paused bulk charge batch.
+  Future<bool> resumeBulkChargeBatch({
+    required String batchCode,
+    String? secretKey,
+    Duration? timeout,
+    bool? enableLogging,
+  }) async {
+    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedTimeout =
+        timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
+    final resolvedLogging =
+        enableLogging ?? _globalConfig?.enableLogging ?? false;
+
+    assert(
+      resolvedKey != null,
+      'secretKey must be provided either directly or via PayWithPayStack.configure().',
+    );
+
+    void log(String msg) {
+      if (resolvedLogging) debugPrint('[PayWithPaystack] $msg');
+    }
+
+    log('→ GET /bulkcharge/resume/$batchCode');
+
+    http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('https://api.paystack.co/bulkcharge/resume/$batchCode'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $resolvedKey',
+        },
+      ).timeout(resolvedTimeout);
+    } on Exception catch (e) {
+      log('[ERROR] $e');
+      return false;
+    }
+
+    log('← ${response.statusCode} ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      return decoded['status'] == true;
+    }
+
+    throw PaystackException(
+      message: 'Resume bulk charge batch failed',
       statusCode: response.statusCode,
       responseBody: response.body,
     );
