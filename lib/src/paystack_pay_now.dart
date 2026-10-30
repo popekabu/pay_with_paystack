@@ -1,22 +1,23 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:pay_with_paystack/model/payment_data.dart';
 import 'package:pay_with_paystack/model/paystack_bearer.dart';
-import 'package:pay_with_paystack/model/paystack_exception.dart';
 import 'package:pay_with_paystack/model/paystack_metadata.dart';
-import 'package:pay_with_paystack/model/paystack_request_response.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 /// Internal widget that hosts the Paystack WebView checkout experience.
 ///
 /// Use [PayWithPayStack.now] instead of instantiating this directly.
+///
+/// ## Security
+/// This widget uses the Paystack **public key** (`pk_…`) only. The checkout is
+/// powered by Paystack's own Inline Popup JS, which is the same SDK used on
+/// paystack.com. The secret key (`sk_…`) is **never** used here — transaction
+/// verification must be done server-side via your backend.
 class PaystackPayNow extends StatefulWidget {
-  final String secretKey;
+  /// Your Paystack **public** key (`pk_live_…` or `pk_test_…`).
+  final String publicKey;
   final String reference;
   final String callbackUrl;
   final String currency;
@@ -127,7 +128,7 @@ class PaystackPayNow extends StatefulWidget {
 
   const PaystackPayNow({
     Key? key,
-    required this.secretKey,
+    required this.publicKey,
     required this.email,
     required this.reference,
     required this.currency,
@@ -184,17 +185,27 @@ class PaystackPayNow extends StatefulWidget {
   State<PaystackPayNow> createState() => _PaystackPayNowState();
 }
 
+// ── Checkout phase ─────────────────────────────────────────────────────────────
+
+enum _CheckoutPhase {
+  /// WebView is loading the Paystack popup HTML page.
+  loading,
+
+  /// Paystack popup is visible and the user is interacting.
+  active,
+
+  /// An error occurred.
+  error,
+}
+
 class _PaystackPayNowState extends State<PaystackPayNow>
     with SingleTickerProviderStateMixin {
-  late Future<PaystackRequestResponse> _requestFuture;
-
-  /// Whether we are currently verifying the transaction (overlay shown).
-  bool _isVerifying = false;
+  _CheckoutPhase _phase = _CheckoutPhase.loading;
+  String _errorMessage = '';
 
   /// WebView load progress (0–100). Drives the linear progress bar.
   int _loadProgress = 0;
 
-  /// Created once when the API response arrives. Never recreated on rebuild.
   WebViewController? _webViewController;
 
   late final AnimationController _pulseController;
@@ -203,7 +214,6 @@ class _PaystackPayNowState extends State<PaystackPayNow>
   @override
   void initState() {
     super.initState();
-    _requestFuture = _makePaymentRequest();
 
     _pulseController = AnimationController(
       vsync: this,
@@ -213,6 +223,8 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     _pulseAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _initWebView();
   }
 
   @override
@@ -231,7 +243,6 @@ class _PaystackPayNowState extends State<PaystackPayNow>
 
   // ── Logo ───────────────────────────────────────────────────────────────────
 
-  /// Returns the caller-supplied logo, or `null` when [widget.logoWidget] was not provided.
   Widget? _buildLogoWidget(double size) {
     if (widget.logoWidget != null) {
       return SizedBox(width: size, height: size, child: widget.logoWidget);
@@ -239,180 +250,322 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     return null;
   }
 
+  // ── HTML generation ────────────────────────────────────────────────────────
 
-  // ── Network ────────────────────────────────────────────────────────────────
-
-  /// Initialises a Paystack transaction and returns the checkout URL.
-  Future<PaystackRequestResponse> _makePaymentRequest() async {
-    // Amount must be in the smallest currency unit (kobo / pesewas).
-    final amountInSubunit = (widget.amount * 100).toStringAsFixed(0);
-
-    // ── Build enriched metadata ────────────────────────────────────────────
-    final Map<String, dynamic> enrichedMetadata = {
+  /// Builds the metadata JSON string for the Paystack popup config.
+  String _buildMetadataJson() {
+    final Map<String, dynamic> meta = {
       if (widget.metadata != null) ...widget.metadata!,
-      // Allows the WebView to detect when the user dismisses the checkout.
-      'cancel_action': 'https://github.com/popekabu/pay_with_paystack',
     };
 
-    // Merge typed custom_fields (preserve any already in metadata).
-    final existingCustomFields = (enrichedMetadata['custom_fields'] as List?)
-            ?.cast<Map<String, dynamic>>() ??
-        [];
+    // Merge custom_fields
+    final existingCustomFields =
+        (meta['custom_fields'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     final typedCustomFields =
         widget.customFields?.map((f) => f.toJson()).toList() ?? [];
     final allCustomFields = [...existingCustomFields, ...typedCustomFields];
     if (allCustomFields.isNotEmpty) {
-      enrichedMetadata['custom_fields'] = allCustomFields;
+      meta['custom_fields'] = allCustomFields;
     }
 
-    // Attach cart items.
+    // Attach cart items
     if (widget.cartItems != null && widget.cartItems!.isNotEmpty) {
-      enrichedMetadata['cart_items'] =
-          widget.cartItems!.map((i) => i.toJson()).toList();
+      meta['cart_items'] = widget.cartItems!.map((i) => i.toJson()).toList();
     }
 
-    // ── Build request body ─────────────────────────────────────────────────
-    final requestBody = <String, dynamic>{
-      'email': widget.email,
-      'amount': amountInSubunit,
-      'reference': widget.reference,
-      'currency': widget.currency,
-      'metadata': enrichedMetadata,
-      'callback_url': widget.callbackUrl,
-      if (widget.plan != null) 'plan': widget.plan,
-      if (widget.invoiceLimit != null) 'invoice_limit': widget.invoiceLimit,
-      if (widget.paymentChannel != null) 'channels': widget.paymentChannel,
-      if (widget.subaccount != null) 'subaccount': widget.subaccount,
-      if (widget.splitCode != null) 'split_code': widget.splitCode,
-      if (widget.transactionCharge != null)
-        'transaction_charge':
-            (widget.transactionCharge! * 100).toStringAsFixed(0),
-      if (widget.bearer != null) 'bearer': widget.bearer!.value,
-    };
-
-    _log('→ POST /transaction/initialize');
-    _log('  body: ${jsonEncode(requestBody)}');
-
-    http.Response response;
-    try {
-      response = await http
-          .post(
-        Uri.parse('https://api.paystack.co/transaction/initialize'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${widget.secretKey}',
-        },
-        body: jsonEncode(requestBody),
-      )
-          .timeout(widget.timeout, onTimeout: () {
-        _log('[TIMEOUT] Request timed out after ${widget.timeout.inSeconds}s');
-        if (widget.onTimeout != null) {
-          widget.onTimeout!();
-        } else {
-          widget.transactionNotCompleted('timeout');
-        }
-        // Return a fake 408 so the FutureBuilder hits the error branch.
-        return http.Response(
-            '{"status":false,"message":"Request timeout"}', 408);
-      });
-    } on Exception catch (e) {
-      _log('[ERROR] Network error: $e');
-      throw PaystackException(
-        message: 'Network error: ${e.toString()}',
-      );
-    }
-
-    _log('← ${response.statusCode} ${response.body}');
-
-    if (response.statusCode == 408) {
-      // Already handled in onTimeout above; surface as exception for UI.
-      throw const PaystackException(
-        message: 'Request timed out. Please check your connection.',
-        statusCode: 408,
-      );
-    }
-
-    if (response.statusCode == 200) {
-      return PaystackRequestResponse.fromJson(jsonDecode(response.body));
-    }
-
-    throw PaystackException(
-      message: 'Failed to initialise payment',
-      statusCode: response.statusCode,
-      responseBody: response.body,
-    );
+    // Build JSON manually to avoid dart:convert import
+    final buffer = StringBuffer('{');
+    var first = true;
+    meta.forEach((k, v) {
+      if (!first) buffer.write(',');
+      first = false;
+      buffer.write('"$k":${_jsonValue(v)}');
+    });
+    buffer.write('}');
+    return buffer.toString();
   }
 
-  /// Verifies the transaction status with Paystack and fires the appropriate
-  /// callback, then pops the screen.
-  Future<void> _checkTransactionStatus(String ref) async {
-    if (!mounted) return;
-    setState(() => _isVerifying = true);
+  String _jsonValue(dynamic v) {
+    if (v == null) return 'null';
+    if (v is bool) return v.toString();
+    if (v is num) return v.toString();
+    if (v is String) {
+      return '"${v.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll('\n', r'\n').replaceAll('\r', r'\r')}"';
+    }
+    if (v is List) {
+      return '[${v.map(_jsonValue).join(',')}]';
+    }
+    if (v is Map) {
+      final parts = v.entries.map((e) => '"${e.key}":${_jsonValue(e.value)}');
+      return '{${parts.join(',')}}';
+    }
+    return '"$v"';
+  }
 
-    _log('→ GET /transaction/verify/$ref');
+  /// Generates the Paystack Inline Popup HTML page.
+  ///
+  /// This uses Paystack's public key — no secret key is needed or used.
+  /// The Paystack popup JS SDK handles the checkout entirely client-side
+  /// using only the public key.
+  String _buildPopupHtml() {
+    final amountInSubunit = (widget.amount * 100).toInt();
+    final metaJson = _buildMetadataJson();
 
-    http.Response response;
+    // Build optional config entries
+    final channelsJson = widget.paymentChannel != null
+        ? '"channels": [${widget.paymentChannel!.map((c) => '"$c"').join(',')}],'
+        : '';
+    final planEntry = widget.plan != null ? '"plan": "${widget.plan}",' : '';
+    final invoiceLimitEntry = widget.invoiceLimit != null
+        ? '"invoice_limit": ${widget.invoiceLimit},'
+        : '';
+    final subaccountEntry = widget.subaccount != null
+        ? '"subaccount": "${widget.subaccount}",'
+        : '';
+    final splitCodeEntry =
+        widget.splitCode != null ? '"split_code": "${widget.splitCode}",' : '';
+    final transactionChargeEntry = widget.transactionCharge != null
+        ? '"transaction_charge": ${(widget.transactionCharge! * 100).toInt()},'
+        : '';
+    final bearerEntry =
+        widget.bearer != null ? '"bearer": "${widget.bearer!.value}",' : '';
+    final firstNameEntry = widget.customerFirstName != null
+        ? '"firstname": "${widget.customerFirstName}",'
+        : '';
+    final lastNameEntry = widget.customerLastName != null
+        ? '"lastname": "${widget.customerLastName}",'
+        : '';
+    final phoneEntry = widget.customerPhone != null
+        ? '"phone": "${widget.customerPhone}",'
+        : '';
+
+    return '''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Paystack Checkout</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #0A0A1A;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(0,195,134,0.2);
+      border-top-color: #00C386;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #BBBBCC; font-size: 14px; letter-spacing: 0.3px; }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <p>Opening secure checkout…</p>
+  </div>
+
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script>
+    function notifyFlutter(type, data) {
+      if (window.PaystackCallback) {
+        window.PaystackCallback.postMessage(JSON.stringify({ type: type, data: data }));
+      }
+    }
+
+    function openPaystack() {
+      try {
+        var handler = PaystackPop.setup({
+          key: '${widget.publicKey}',
+          email: '${widget.email}',
+          amount: $amountInSubunit,
+          currency: '${widget.currency}',
+          ref: '${widget.reference}',
+          $channelsJson
+          $planEntry
+          $invoiceLimitEntry
+          $subaccountEntry
+          $splitCodeEntry
+          $transactionChargeEntry
+          $bearerEntry
+          $firstNameEntry
+          $lastNameEntry
+          $phoneEntry
+          metadata: $metaJson,
+          onClose: function() {
+            notifyFlutter('cancelled', null);
+          },
+          callback: function(response) {
+            notifyFlutter('success', {
+              reference: response.reference,
+              status: response.status,
+              trans: response.trans,
+              transaction: response.transaction,
+              trxref: response.trxref
+            });
+          }
+        });
+        handler.openIframe();
+      } catch(e) {
+        notifyFlutter('error', e.toString());
+      }
+    }
+
+    // Open checkout as soon as the Paystack script loads
+    window.addEventListener('load', function() {
+      openPaystack();
+    });
+  </script>
+</body>
+</html>''';
+  }
+
+  // ── WebView setup ──────────────────────────────────────────────────────────
+
+  void _initWebView() {
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'PaystackCallback',
+        onMessageReceived: _handleJsMessage,
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (progress) {
+            if (mounted) setState(() => _loadProgress = progress);
+          },
+          onPageStarted: (_) {
+            if (mounted) setState(() => _phase = _CheckoutPhase.loading);
+          },
+          onPageFinished: (_) {
+            if (mounted) setState(() => _phase = _CheckoutPhase.active);
+          },
+          onWebResourceError: (error) {
+            _log('[ERROR] WebResource error: ${error.description}');
+            // Only treat main-frame errors as fatal. Sub-resource
+            // errors (e.g. a single script or image timing out)
+            // should not flip the whole page to the error state —
+            // this was causing a brief "sorry" flash before the
+            // checkout loaded successfully.
+            if (error.isForMainFrame == true && mounted) {
+              setState(() {
+                _phase = _CheckoutPhase.error;
+                _errorMessage =
+                    'Failed to load checkout page. Please check your connection.';
+              });
+            }
+          },
+          onNavigationRequest: (request) {
+            final url = request.url;
+            _log('[NAV] $url');
+
+            // Block navigation away from our local HTML — the popup handles
+            // everything internally. Only let data: and about: through.
+            if (url.startsWith('data:') || url.startsWith('about:')) {
+              return NavigationDecision.navigate;
+            }
+
+            // If Paystack redirects to the callback URL, intercept it.
+            if (url.contains(widget.callbackUrl)) {
+              _log('[INFO] Callback URL hit — payment complete');
+              // Extract reference from URL query params if present
+              final uri = Uri.tryParse(url);
+              final ref = uri?.queryParameters['reference'] ??
+                  uri?.queryParameters['trxref'] ??
+                  widget.reference;
+              _handleSuccess(ref);
+              return NavigationDecision.prevent;
+            }
+
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadHtmlString(_buildPopupHtml());
+  }
+
+  /// Receives messages from the Paystack Popup JS via the JavaScript channel.
+  void _handleJsMessage(JavaScriptMessage message) {
+    _log('[JS] ${message.message}');
     try {
-      response = await http.get(
-        Uri.parse('https://api.paystack.co/transaction/verify/$ref'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${widget.secretKey}',
-        },
-      ).timeout(widget.timeout);
-    } on TimeoutException {
-      _log('[TIMEOUT] Verification timed out');
-      if (mounted) {
-        setState(() => _isVerifying = false);
-        _showSnackBar('Verification timed out. Check your Paystack dashboard.');
+      // Simple JSON parsing without dart:convert — use the message as-is
+      // by checking key strings. This avoids importing dart:convert.
+      final msg = message.message;
+
+      if (msg.contains('"type":"success"') ||
+          msg.contains('"type": "success"')) {
+        // Extract the reference from the JSON string
+        final refMatch = RegExp(r'"reference"\s*:\s*"([^"]+)"').firstMatch(msg);
+        final ref = refMatch?.group(1) ?? widget.reference;
+        _handleSuccess(ref);
+      } else if (msg.contains('"type":"cancelled"') ||
+          msg.contains('"type": "cancelled"')) {
+        _handleCancel();
+      } else if (msg.contains('"type":"error"') ||
+          msg.contains('"type": "error"')) {
+        final errMatch = RegExp(r'"data"\s*:\s*"([^"]+)"').firstMatch(msg);
+        final err = errMatch?.group(1) ?? 'Unknown error';
+        if (mounted) {
+          setState(() {
+            _phase = _CheckoutPhase.error;
+            _errorMessage = err;
+          });
+        }
       }
-      return;
-    } on Exception catch (_) {
-      if (mounted) {
-        setState(() => _isVerifying = false);
-        _showSnackBar('Network error. Please check your connection.');
-      }
-      return;
+    } catch (e) {
+      _log('[ERROR] Failed to parse JS message: $e');
     }
+  }
 
-    _log('← ${response.statusCode} ${response.body}');
-
-    if (!mounted) return;
-    setState(() => _isVerifying = false);
-
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      final status = decoded['data']?['status']?.toString();
-      if (status == 'success') {
-        final data = PaymentData.fromJson(decoded['data']);
-        widget.transactionCompleted(data);
-      } else {
-        widget.transactionNotCompleted(status ?? 'unknown');
-      }
-      if (mounted) Navigator.of(context).pop();
-    } else {
-      _showSnackBar(
-        'Verification failed (${response.statusCode}). Please check your dashboard.',
-      );
-      if (mounted) Navigator.of(context).pop();
-    }
+  /// Called when Paystack reports a successful payment callback.
+  ///
+  /// NOTE: This fires when Paystack's popup reports success. The authoritative
+  /// verification of the transaction must be done server-side by your backend
+  /// using the Paystack secret key via `GET /transaction/verify/:reference`.
+  void _handleSuccess(String reference) {
+    _log('[INFO] Payment callback received for ref: $reference');
+    // Build a minimal PaymentData from what we have. The developer's backend
+    // should perform full verification and return enriched data.
+    final data = PaymentData(
+      reference: reference,
+      status: 'success',
+      // Store amount in smallest currency unit (kobo/pesewas), matching
+      // Paystack's API convention. Use amountInMajorUnit getter to read it back.
+      amount: (widget.amount * 100).toInt(),
+      currency: widget.currency,
+      paidAt: DateTime.now().toIso8601String(),
+    );
+    widget.transactionCompleted(data);
+    if (mounted) Navigator.of(context).pop(data);
   }
 
   /// Called when the user explicitly cancels — closes without verifying.
-  void _handleUserCancel() {
+  void _handleCancel() {
+    _log('[INFO] User cancelled checkout');
     widget.transactionCancelled?.call();
     if (mounted) Navigator.of(context).pop();
   }
 
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ));
+  void _retry() {
+    setState(() {
+      _phase = _CheckoutPhase.loading;
+      _loadProgress = 0;
+      _errorMessage = '';
+    });
+    _initWebView();
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -421,38 +574,87 @@ class _PaystackPayNowState extends State<PaystackPayNow>
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      child: FutureBuilder<PaystackRequestResponse>(
-        future: _requestFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoadingState();
-          }
+      child: _buildPhaseContent(),
+    );
+  }
 
-          if (snapshot.hasError) {
-            final errorMsg = snapshot.error?.toString() ?? 'An error occurred';
-            return _buildErrorState(errorMsg);
-          }
+  Widget _buildPhaseContent() {
+    final accent = widget.progressColor ?? const Color(0xFF00C386);
+    final progressBg =
+        widget.progressBackgroundColor ?? const Color(0xFF1E1E2E);
+    final appBarBgColor = widget.appBarColor ?? const Color(0xFF0A0A1A);
+    final appBarFgColor = widget.appBarTextColor ?? Colors.white;
+    final appBarLogo = _buildLogoWidget(20);
 
-          if (snapshot.hasData && snapshot.data!.status) {
-            return _buildWebViewState(snapshot.data!);
-          }
+    if (_phase == _CheckoutPhase.error) {
+      return _buildErrorState();
+    }
 
-          // Fallback: unexpected data state
-          return _buildErrorState('Unexpected response from Paystack.');
-        },
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A1A),
+      appBar: widget.showAppBar
+          ? AppBar(
+              backgroundColor: appBarBgColor,
+              foregroundColor: appBarFgColor,
+              elevation: 0,
+              automaticallyImplyLeading: false,
+              title: Row(
+                children: [
+                  if (appBarLogo != null) ...[
+                    appBarLogo,
+                    const SizedBox(width: 10),
+                  ],
+                  Text(
+                    widget.appBarTitle,
+                    style: TextStyle(
+                      color: appBarFgColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: IconButton(
+                    icon: Icon(Icons.close_rounded, color: appBarFgColor),
+                    tooltip: 'Close',
+                    onPressed: _handleCancel,
+                  ),
+                ),
+              ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(3),
+                child: _loadProgress < 100
+                    ? LinearProgressIndicator(
+                        value: _loadProgress / 100,
+                        backgroundColor: progressBg,
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                        minHeight: 3,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            )
+          : null,
+      body: Stack(
+        children: [
+          if (_webViewController != null)
+            WebViewWidget(controller: _webViewController!),
+          if (_phase == _CheckoutPhase.loading) _buildLoadingOverlay(accent),
+        ],
       ),
     );
   }
 
-  Widget _buildLoadingState() {
+  Widget _buildLoadingOverlay(Color accent) {
     if (widget.loadingWidget != null) {
-      return Scaffold(body: Center(child: widget.loadingWidget!));
+      return Center(child: widget.loadingWidget!);
     }
-    final accent = widget.progressColor ?? const Color(0xFF00C386);
     final logo = _buildLogoWidget(48);
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A1A),
-      body: Center(
+    return Container(
+      color: const Color(0xFF0A0A1A),
+      child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -480,9 +682,9 @@ class _PaystackPayNowState extends State<PaystackPayNow>
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Connecting to Paystack…',
-              style: TextStyle(
+            Text(
+              widget.connectingText ?? 'Connecting to Paystack…',
+              style: const TextStyle(
                 color: Color(0xFFBBBBCC),
                 fontSize: 14,
                 letterSpacing: 0.3,
@@ -494,13 +696,13 @@ class _PaystackPayNowState extends State<PaystackPayNow>
     );
   }
 
-  Widget _buildErrorState(String error) {
+  Widget _buildErrorState() {
+    final accent = widget.progressColor ?? const Color(0xFF00C386);
     if (widget.errorWidget != null) {
       return Scaffold(
-        body: widget.errorWidget!(error, _retry),
+        body: widget.errorWidget!(_errorMessage, _retry),
       );
     }
-    final accent = widget.progressColor ?? const Color(0xFF00C386);
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
       body: SafeArea(
@@ -534,7 +736,7 @@ class _PaystackPayNowState extends State<PaystackPayNow>
               ),
               const SizedBox(height: 10),
               Text(
-                error.replaceFirst('PaystackException: ', ''),
+                _errorMessage.replaceFirst('PaystackException: ', ''),
                 style: const TextStyle(
                   color: Color(0xFF888899),
                   fontSize: 13,
@@ -585,161 +787,4 @@ class _PaystackPayNowState extends State<PaystackPayNow>
       ),
     );
   }
-
-  /// Creates the [WebViewController] exactly once for the given [data].
-  /// Subsequent rebuilds reuse the same controller so [loadRequest] is never
-  /// called again (which was causing the infinite-reload loop).
-  WebViewController _getOrCreateController(PaystackRequestResponse data) {
-    if (_webViewController != null) return _webViewController!;
-
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (progress) {
-            if (mounted) setState(() => _loadProgress = progress);
-          },
-          onNavigationRequest: (request) async {
-            final url = request.url;
-
-            final isCancelUrl = const {
-              'https://your-cancel-url.com',
-              'https://cancelurl.com',
-              'https://standard.paystack.co/close',
-              'https://paystack.co/close',
-              'https://github.com/popekabu/pay_with_paystack',
-            }.contains(url);
-
-            final isCallbackUrl = url.contains(widget.callbackUrl);
-
-            if (isCancelUrl) {
-              _log('[INFO] User cancelled checkout');
-              _handleUserCancel();
-              return NavigationDecision.prevent;
-            }
-
-            if (isCallbackUrl) {
-              _log('[INFO] Callback URL hit — verifying');
-              await _checkTransactionStatus(data.reference);
-              return NavigationDecision.prevent;
-            }
-
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(data.authUrl));
-
-    return _webViewController!;
-  }
-
-  Widget _buildWebViewState(PaystackRequestResponse data) {
-    final controller = _getOrCreateController(data);
-    final accent = widget.progressColor ?? const Color(0xFF00C386);
-    final progressBg =
-        widget.progressBackgroundColor ?? const Color(0xFF1E1E2E);
-
-    final appBarBgColor = widget.appBarColor ?? const Color(0xFF0A0A1A);
-    final appBarFgColor = widget.appBarTextColor ?? Colors.white;
-    final appBarLogo = _buildLogoWidget(20);
-
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: const Color(0xFF0A0A1A),
-          appBar: widget.showAppBar
-              ? AppBar(
-                  backgroundColor: appBarBgColor,
-                  foregroundColor: appBarFgColor,
-                  elevation: 0,
-                  automaticallyImplyLeading: false,
-                  title: Row(
-                    children: [
-                      if (appBarLogo != null) ...[
-                        appBarLogo,
-                        const SizedBox(width: 10),
-                      ],
-                      Text(
-                        widget.appBarTitle,
-                        style: TextStyle(
-                          color: appBarFgColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        icon: Icon(Icons.close_rounded, color: appBarFgColor),
-                        tooltip: 'Close',
-                        onPressed: _handleUserCancel,
-                      ),
-                    ),
-                  ],
-                  bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(3),
-                    child: _loadProgress < 100
-                        ? LinearProgressIndicator(
-                            value: _loadProgress / 100,
-                            backgroundColor: progressBg,
-                            valueColor: AlwaysStoppedAnimation<Color>(accent),
-                            minHeight: 3,
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                )
-              : null,
-          body: WebViewWidget(controller: controller),
-        ),
-
-        // Verification overlay
-        if (_isVerifying)
-          Container(
-            color: Colors.black54,
-            child: Center(
-              child: Card(
-                color: const Color(0xFF1A1A2E),
-                elevation: 8,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(accent),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Verifying transaction…',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  void _retry() {
-    setState(() {
-      _webViewController = null;
-      _loadProgress = 0;
-      _requestFuture = _makePaymentRequest();
-    });
-  }
 }
-
-

@@ -8,6 +8,48 @@
 - QR
 - EFT
 
+### Platform Support
+
+| Platform | Status | How it works |
+|----------|--------|-------------|
+| **Android** | ✅ | Paystack Inline Popup in a WebView |
+| **iOS** | ✅ | Paystack Inline Popup in a WebView |
+| **Web** | ✅ | Opens Paystack hosted checkout in a new browser tab |
+| **macOS / Windows / Linux** | ✅ | Opens Paystack hosted checkout via `url_launcher` |
+
+---
+
+## ⚠️ Migrating from v1.x → v2.0.0
+
+v2.0.0 is a **breaking change** that addresses [Issue #23](https://github.com/popekabu/pay_with_paystack/issues/23) — the package no longer requires or uses the Paystack **secret key** (`sk_…`) in client code.
+
+### What you need to change
+
+**1. Replace `secretKey` with `publicKey`:**
+
+```diff
+// In PaystackConfig:
+- PaystackConfig(secretKey: 'sk_live_xxxx')
++ PaystackConfig(publicKey: 'pk_live_xxxx')
+
+// In PayWithPayStack().now():
+- PayWithPayStack().now(secretKey: 'sk_live_xxxx', ...)
++ PayWithPayStack().now(publicKey: 'pk_live_xxxx', ...)
+```
+
+**2. Add server-side verification:**
+
+In v1.x the plugin verified payments client-side using your secret key. In v2.0.0, your **backend** must verify payments. When checkout completes, send `data.reference` to your server and call:
+
+```
+GET https://api.paystack.co/transaction/verify/:reference
+Authorization: Bearer sk_live_xxxx   ← secret key stays on your server only
+```
+
+**3. Backend-only methods are now `@Deprecated`:**
+
+`chargeAuthorization()`, `bulkCharge()`, and related methods now show a compile-time deprecation warning reminding you to move them to a secure server.
+
 ---
 
 ## Getting Started
@@ -32,10 +74,25 @@ No extra configuration required.
 
 ---
 
+## Security
+
+> **This package uses only the Paystack public key (`pk_…`) — the secret key (`sk_…`) is
+> never required or used in client code.**
+>
+> Embedding a secret key in a mobile or web app is a serious security vulnerability.
+> Secret keys can be extracted via decompilation or network inspection and grant full
+> API access (refunds, transfers, subaccount management, etc.).
+>
+> **Transaction verification must be done server-side.** When checkout completes, your
+> backend at `callbackUrl` receives the reference and should call
+> `GET /transaction/verify/:ref` with the secret key to confirm the payment.
+
+---
+
 ## Global Configuration (optional)
 
 Call `PayWithPayStack.configure()` once at app startup to set shared defaults so you
-don't have to repeat `secretKey`, `currency`, and `callbackUrl` on every call:
+don't have to repeat `publicKey`, `currency`, and `callbackUrl` on every call:
 
 ```dart
 import 'package:flutter/foundation.dart';
@@ -43,10 +100,10 @@ import 'package:pay_with_paystack/pay_with_paystack.dart';
 
 void main() {
   PayWithPayStack.configure(PaystackConfig(
-    secretKey: 'sk_live_xxxxxxxxxxxxxxxxxxxx',
+    publicKey: 'pk_live_xxxxxxxxxxxxxxxxxxxx', // ← public key only (pk_…)
     currency: 'GHS',
     callbackUrl: 'https://my-app.com/payment/callback',
-    enableLogging: kDebugMode, // logs requests in debug, silent in release
+    enableLogging: kDebugMode, // logs in debug, silent in release
     timeout: const Duration(seconds: 30),
   ));
   runApp(const MyApp());
@@ -68,9 +125,9 @@ await PayWithPayStack().now(
 
 | PaystackConfig field | Type       | Default | Description |
 |----------------------|------------|---------|-------------|
-| `secretKey`          | `String`   | —       | Your Paystack secret key |
+| `publicKey`          | `String`   | —       | Your Paystack **public** key (`pk_…`) |
 | `currency`           | `String?`  | `null`  | ISO 4217 currency code |
-| `callbackUrl`        | `String?`  | `null`  | Redirect URL after checkout |
+| `callbackUrl`        | `String?`  | `null`  | Backend URL Paystack redirects to after checkout |
 | `enableLogging`      | `bool`     | `false` | Print request/response to console (debug only) |
 | `timeout`            | `Duration` | `30s`   | Max wait time for Paystack API |
 
@@ -85,17 +142,15 @@ final ref = PayWithPayStack().generateUuidV4();
 
 await PayWithPayStack().now(
   context: context,
-  secretKey: 'sk_live_XXXXXXXXXXXXXXXXXXXXX',
+  publicKey: 'pk_live_XXXXXXXXXXXXXXXXXXXXX', // ← public key (pk_…), never secret key
   customerEmail: 'user@example.com',
   reference: ref,
   currency: 'GHS',
   amount: 50.00,          // GHS 50.00 — converted to pesewas automatically
-  callbackUrl: 'https://your-callback.com',
+  callbackUrl: 'https://your-backend.com/verify',
   transactionCompleted: (PaymentData data) {
-    print('[OK] Paid ${data.amountInMajorUnit} ${data.currency}');
-    print('   Reference : ${data.reference}');
-    print('   Channel   : ${data.channel}');
-    print('   Customer  : ${data.customer?.fullName}');
+    print('[OK] Payment callback received for: ${data.reference}');
+    // Your backend at callbackUrl verifies this server-side using the secret key.
   },
   transactionNotCompleted: (String reason) {
     print('[FAIL] Payment not completed: $reason');
@@ -402,129 +457,36 @@ metadata: {
 
 ## Charging a Returning Customer (Silent Re-charge)
 
-Once a customer has paid, you can silently charge them again using their saved
-authorization code — no WebView required:
+> ⚠️ **Backend use only.** `chargeAuthorization` calls Paystack's
+> `POST /transaction/charge_authorization` endpoint which requires a **secret key**.
+> This method is **deprecated** for direct client-app use. Move this call to a
+> secure backend endpoint and invoke it from your server.
+
+If you are calling this from a server-side Dart/Flutter backend:
 
 ```dart
-// authorization code from a previous PaymentData:
-final authCode = previousPaymentData.authorization?.authorizationCode;
-
 // Only reusable authorizations can be recharged:
 if (previousPaymentData.authorization?.reusable == true) {
+  // ignore: deprecated_member_use
   await PayWithPayStack().chargeAuthorization(
-    authorizationCode: authCode!,
+    authorizationCode: previousPaymentData.authorization!.authorizationCode!,
     customerEmail: 'user@example.com',
     amount: 50.00,
-    currency: 'GHS',                                   // optional if config set
-    secretKey: 'sk_live_xxxx',                         // optional if config set
-    reference: PayWithPayStack().generateUuidV4(),      // optional, auto-generated if omitted
+    currency: 'GHS',
+    secretKey: 'sk_live_xxxx', // ← only safe on a server, never in a client app
+    reference: PayWithPayStack().generateUuidV4(),
     transactionCompleted: (data) => print('Recharged: ${data.reference}'),
     transactionNotCompleted: (reason) => print('Failed: $reason'),
   );
 }
 ```
 
-> **Note**: `chargeAuthorization` throws a `PaystackException` on HTTP errors
-> (non-200 responses). Wrap the call in a try/catch for production use.
-
-### chargeAuthorization parameters
-
-| Parameter               | Type                    | Required | Description |
-|-------------------------|-------------------------|----------|-------------|
-| `authorizationCode`     | `String`                | ✅       | Auth code from a previous transaction |
-| `customerEmail`         | `String`                | ✅       | Customer's email |
-| `amount`                | `double`                | ✅       | Amount in major unit (e.g. `50.00`) |
-| `transactionCompleted`  | `Function(PaymentData)` | ✅       | Called on success |
-| `transactionNotCompleted` | `Function(String)`    | ✅       | Called on failure |
-| `secretKey`             | `String?`               | ❌       | Optional if global config set |
-| `currency`              | `String?`               | ❌       | Optional if global config set |
-| `reference`             | `String?`               | ❌       | Auto-generated UUID if omitted |
-| `metadata`              | `Map<String, dynamic>?` | ❌       | Extra metadata for the charge |
-| `timeout`               | `Duration?`             | ❌       | Defaults to 30s or config value |
-| `enableLogging`         | `bool?`                 | ❌       | Log request/response |
-
 ---
 
 ## Bulk Charges (Bulk Payment)
 
-Charge multiple saved customer authorizations in a single batch request using Paystack's Bulk Charges API.
-
-### 1. Initiate a Bulk Charge Batch
-
-```dart
-final items = [
-  PaystackBulkChargeItem(
-    authorizationCode: 'AUTH_xxxxx',
-    amount: 50.00,
-    reference: PayWithPayStack().generateUuidV4(),
-    email: 'user1@example.com',
-  ),
-  PaystackBulkChargeItem(
-    authorizationCode: 'AUTH_yyyyy',
-    amount: 20.00,
-    reference: PayWithPayStack().generateUuidV4(),
-    email: 'user2@example.com',
-  ),
-];
-
-// Initiate the batch:
-final batch = await PayWithPayStack().bulkCharge(
-  items: items,
-  secretKey: 'sk_live_xxxx', // optional if PayWithPayStack.configure() was called
-  batchInitiated: (batch) => print('Batch queued: ${batch.batchCode}'),
-  batchFailed: (reason) => print('Batch failed: $reason'),
-);
-
-print('Status: ${batch?.status}'); // 'pending' or 'processing'
-print('Batch Code: ${batch?.batchCode}');
-```
-
-### 2. Check Batch Status
-
-Paystack processes bulk charges asynchronously. Fetch current batch status and progress anytime:
-
-```dart
-final batch = await PayWithPayStack().fetchBulkChargeBatch(
-  batchCodeOrId: 'BCH_1878848492023',
-);
-
-if (batch != null) {
-  print('Status: ${batch.status}');
-  print('Total charges: ${batch.totalCharges}');
-  print('Pending: ${batch.pendingCharges}');
-  print('Is complete: ${batch.isComplete}');
-}
-```
-
-### 3. Fetch Charges in a Batch
-
-Retrieve individual charge records and their transaction outcomes:
-
-```dart
-final charges = await PayWithPayStack().fetchBulkChargeBatchCharges(
-  batchCodeOrId: 'BCH_1878848492023',
-  status: 'success', // optional: 'pending', 'success', 'failed'
-  perPage: 50,       // optional
-);
-
-for (final charge in charges ?? []) {
-  print('Charge status: ${charge['transaction']?['status']}');
-}
-```
-
-### 4. Pause or Resume a Batch
-
-```dart
-// Pause an active batch:
-final paused = await PayWithPayStack().pauseBulkChargeBatch(
-  batchCode: 'BCH_1878848492023',
-);
-
-// Resume a paused batch:
-final resumed = await PayWithPayStack().resumeBulkChargeBatch(
-  batchCode: 'BCH_1878848492023',
-);
-```
+> ⚠️ **Backend use only.** All bulk charge methods require a **secret key** and are
+> **deprecated** for direct client-app use. Move these calls to your secure backend.
 
 ---
 
@@ -555,7 +517,7 @@ try {
 | `amount`                   | `double`                                 | ✅       | —                    |
 | `transactionCompleted`     | `Function(PaymentData)`                  | ✅       | —                    |
 | `transactionNotCompleted`  | `Function(String)`                       | ✅       | —                    |
-| `secretKey`                | `String?`                                | ❌*      | global config        |
+| `publicKey`                | `String?`                                | ❌*      | global config        |
 | `currency`                 | `String?`                                | ❌*      | global config        |
 | `callbackUrl`              | `String?`                                | ❌*      | global config        |
 | `transactionCancelled`     | `VoidCallback?`                          | ❌       | `null`               |

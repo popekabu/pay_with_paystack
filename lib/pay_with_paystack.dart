@@ -27,18 +27,27 @@ export 'package:pay_with_paystack/model/paystack_metadata.dart';
 
 /// Entry point for the `pay_with_paystack` plugin.
 ///
-/// Call [now] to launch the Paystack checkout WebView, [chargeAuthorization]
-/// to silently charge a returning customer, or [generateUuidV4] to generate
-/// a unique transaction reference.
+/// Call [now] to launch the Paystack checkout WebView, [generateUuidV4] to
+/// generate a unique transaction reference, or the server-side helpers
+/// (`chargeAuthorization`, `bulkCharge`, etc.) **from your backend proxy only**.
+///
+/// ## Security
+///
+/// This package uses Paystack's **public key** (`pk_…`) for the checkout flow.
+/// The public key is safe to embed in a mobile or web app.
+///
+/// **Never embed your Paystack secret key (`sk_…`) in a client app.**
+/// Secret keys must only exist on your server. Use Paystack webhooks or a
+/// secure backend endpoint to verify transactions after checkout.
 ///
 /// ## Global configuration (optional)
 ///
 /// Call [configure] once at app startup to set shared defaults so you don't
-/// repeat `secretKey`, `currency`, and `callbackUrl` on every call:
+/// repeat `publicKey`, `currency`, and `callbackUrl` on every call:
 ///
 /// ```dart
 /// PayWithPayStack.configure(PaystackConfig(
-///   secretKey: 'sk_live_xxxx',
+///   publicKey: 'pk_live_xxxx',
 ///   currency: 'GHS',
 ///   callbackUrl: 'https://my-app.com/callback',
 /// ));
@@ -48,12 +57,12 @@ export 'package:pay_with_paystack/model/paystack_metadata.dart';
 /// ```dart
 /// await PayWithPayStack().now(
 ///   context: context,
-///   secretKey: 'sk_live_xxxx',
+///   publicKey: 'pk_live_xxxx',
 ///   customerEmail: 'user@example.com',
 ///   reference: PayWithPayStack().generateUuidV4(),
 ///   currency: 'GHS',
 ///   amount: 50.00,
-///   callbackUrl: 'https://your-callback.com',
+///   callbackUrl: 'https://your-backend.com/verify',
 ///   transactionCompleted: (data) => print('Paid: ${data.amountInMajorUnit}'),
 ///   transactionNotCompleted: (reason) => print('Failed: $reason'),
 /// );
@@ -65,12 +74,12 @@ class PayWithPayStack {
 
   /// Sets app-level defaults for all [PayWithPayStack] calls.
   ///
-  /// Call this once in `main()` (or your DI setup) so that [secretKey],
+  /// Call this once in `main()` (or your DI setup) so that [publicKey],
   /// [currency], and [callbackUrl] can be omitted on individual calls.
   ///
   /// ```dart
   /// PayWithPayStack.configure(PaystackConfig(
-  ///   secretKey: 'sk_live_xxxx',
+  ///   publicKey: 'pk_live_xxxx',
   ///   currency: 'GHS',
   ///   callbackUrl: 'https://my-app.com/callback',
   ///   enableLogging: kDebugMode,
@@ -95,8 +104,12 @@ class PayWithPayStack {
 
   // ── now() ──────────────────────────────────────────────────────────────────
 
-  /// Launches the Paystack payment WebView and resolves with [PaymentData]
-  /// when the checkout session ends (whether successful or not).
+  /// Launches the Paystack payment checkout and resolves with [PaymentData]
+  /// when the session ends (whether successful or not).
+  ///
+  /// Uses Paystack's **public key** only — the secret key is never required
+  /// or used here. Transaction verification must be performed server-side by
+  /// your backend at [callbackUrl].
   ///
   /// Parameters marked as *optional if config set* can be omitted when a
   /// global [PaystackConfig] has been set via [configure].
@@ -110,9 +123,10 @@ class PayWithPayStack {
   ///   Converted to pesewas / kobo automatically.
   /// - [transactionCompleted] — called with [PaymentData] on success.
   /// - [transactionNotCompleted] — called with a status string on failure.
-  /// - [secretKey] — your Paystack secret key. *Optional if config set.*
+  /// - [publicKey] — your Paystack **public** key (`pk_…`). *Optional if config set.*
   /// - [currency] — ISO 4217 code e.g. `"GHS"`. *Optional if config set.*
-  /// - [callbackUrl] — redirect URL after payment. *Optional if config set.*
+  /// - [callbackUrl] — your backend URL Paystack redirects to after payment.
+  ///   *Optional if config set.*
   ///
   /// ---
   /// ### Cancel callback
@@ -202,7 +216,7 @@ class PayWithPayStack {
     required Function(String reason) transactionNotCompleted,
 
     // ── Optional if global config provides them ───────────────────────────────
-    String? secretKey,
+    String? publicKey,
     String? currency,
     String? callbackUrl,
 
@@ -268,7 +282,6 @@ class PayWithPayStack {
     /// Track color for the linear progress indicator. Defaults to
     /// `Color(0xFF1E1E2E)`.
     Color? progressBackgroundColor,
-
     Widget? loadingWidget,
     Widget Function(String error, VoidCallback retry)? errorWidget,
 
@@ -297,7 +310,7 @@ class PayWithPayStack {
     String? verifyingSubtitleText,
   }) {
     // Resolve values: direct param > global config > error.
-    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedKey = publicKey ?? _globalConfig?.publicKey;
     final resolvedCurrency = currency ?? _globalConfig?.currency;
     final resolvedCallbackUrl = callbackUrl ?? _globalConfig?.callbackUrl;
     final resolvedTimeout =
@@ -307,7 +320,7 @@ class PayWithPayStack {
 
     assert(
       resolvedKey != null,
-      'secretKey must be provided either directly or via PayWithPayStack.configure().',
+      'publicKey must be provided either directly or via PayWithPayStack.configure().',
     );
     assert(
       resolvedCurrency != null,
@@ -351,7 +364,7 @@ class PayWithPayStack {
       context,
       MaterialPageRoute(
         builder: (context) => PaystackPayNow(
-          secretKey: resolvedKey!,
+          publicKey: resolvedKey!,
           email: customerEmail,
           reference: reference,
           currency: resolvedCurrency!,
@@ -414,6 +427,12 @@ class PayWithPayStack {
   /// Charges a returning customer silently using a saved authorization code,
   /// without opening a WebView.
   ///
+  /// > ⚠️ **Backend use only.** This method calls `POST /transaction/charge_authorization`
+  /// > which requires a **Paystack secret key**. Calling it directly from a
+  /// > mobile or web app violates Paystack's security guidelines and exposes
+  /// > your secret key to decompilation. Move this call to a secure backend
+  /// > endpoint and invoke it from your server.
+  ///
   /// Requires a valid [authorizationCode] from a previous successful
   /// transaction (available as `data.authorization?.authorizationCode`
   /// from [PaymentData]).
@@ -421,10 +440,10 @@ class PayWithPayStack {
   /// > **Important**: Only works with reusable authorizations
   /// > (`data.authorization?.reusable == true`).
   ///
-  /// ## Example
+  /// ## Example (server-side only)
   /// ```dart
   /// await PayWithPayStack().chargeAuthorization(
-  ///   secretKey: 'sk_live_xxxx',
+  ///   secretKey: 'sk_live_xxxx', // ← from your secure backend, never hardcoded
   ///   authorizationCode: 'AUTH_xxxxxxxxxx',
   ///   customerEmail: 'user@example.com',
   ///   amount: 50.00,
@@ -434,6 +453,11 @@ class PayWithPayStack {
   ///   transactionNotCompleted: (reason) => print('Failed: $reason'),
   /// );
   /// ```
+  @Deprecated(
+    'chargeAuthorization() requires a Paystack secret key and must only be '
+    'called from a secure backend — never from a client app. '
+    'Move this call to your server and invoke it via a secure API endpoint.',
+  )
   Future<PaymentData?> chargeAuthorization({
     required String authorizationCode,
     required String customerEmail,
@@ -441,7 +465,7 @@ class PayWithPayStack {
     required Function(PaymentData data) transactionCompleted,
     required Function(String reason) transactionNotCompleted,
 
-    // Optional if global config provides them
+    // Secret key — must come from your backend, never hardcoded in the app
     String? secretKey,
     String? currency,
     String? reference,
@@ -449,7 +473,7 @@ class PayWithPayStack {
     Duration? timeout,
     bool? enableLogging,
   }) async {
-    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedKey = secretKey ?? _globalConfig?.publicKey;
     final resolvedCurrency = currency ?? _globalConfig?.currency;
     final resolvedRef = reference ?? generateUuidV4();
     final resolvedTimeout =
@@ -528,35 +552,20 @@ class PayWithPayStack {
   /// Initiates a bulk charge batch for multiple saved card authorizations in a
   /// single API call.
   ///
+  /// > ⚠️ **Backend use only.** This method requires a **Paystack secret key**.
+  /// > Move this call to a secure backend endpoint.
+  ///
   /// Paystack processes bulk charges asynchronously in the background. This method
   /// queues the batch with Paystack and returns the initial [PaystackBulkChargeBatch]
   /// status (usually `pending`).
   ///
   /// To monitor or inspect batch progress, use [fetchBulkChargeBatch] or listen
   /// for Paystack webhooks (`bulk_charge.processed`).
-  ///
-  /// ## Example
-  /// ```dart
-  /// final batch = await PayWithPayStack().bulkCharge(
-  ///   secretKey: 'sk_live_xxxx',
-  ///   items: [
-  ///     PaystackBulkChargeItem(
-  ///       authorizationCode: 'AUTH_111',
-  ///       amount: 50.0,
-  ///       reference: PayWithPayStack().generateUuidV4(),
-  ///       email: 'user1@example.com',
-  ///     ),
-  ///     PaystackBulkChargeItem(
-  ///       authorizationCode: 'AUTH_222',
-  ///       amount: 25.0,
-  ///       reference: PayWithPayStack().generateUuidV4(),
-  ///       email: 'user2@example.com',
-  ///     ),
-  ///   ],
-  ///   batchInitiated: (batch) => print('Queued batch: ${batch.batchCode}'),
-  ///   batchFailed: (reason) => print('Failed: $reason'),
-  /// );
-  /// ```
+  @Deprecated(
+    'bulkCharge() requires a Paystack secret key and must only be '
+    'called from a secure backend — never from a client app. '
+    'Move this call to your server and invoke it via a secure API endpoint.',
+  )
   Future<PaystackBulkChargeBatch?> bulkCharge({
     required List<PaystackBulkChargeItem> items,
     void Function(PaystackBulkChargeBatch batch)? batchInitiated,
@@ -565,7 +574,7 @@ class PayWithPayStack {
     Duration? timeout,
     bool? enableLogging,
   }) async {
-    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedKey = secretKey ?? _globalConfig?.publicKey;
     final resolvedTimeout =
         timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
     final resolvedLogging =
@@ -619,8 +628,8 @@ class PayWithPayStack {
         batchInitiated?.call(batch);
         return batch;
       } else {
-        final msg = decoded['message']?.toString() ??
-            'Bulk charge initiation failed';
+        final msg =
+            decoded['message']?.toString() ?? 'Bulk charge initiation failed';
         batchFailed?.call(msg);
         return null;
       }
@@ -637,14 +646,20 @@ class PayWithPayStack {
 
   /// Retrieves the current status and metrics of a bulk charge batch.
   ///
+  /// > ⚠️ **Backend use only.** Requires a Paystack secret key.
+  ///
   /// [batchCodeOrId] can be the batch code (e.g. `BCH_1878848492023`) or integer ID.
+  @Deprecated(
+    'fetchBulkChargeBatch() requires a Paystack secret key and must only be '
+    'called from a secure backend — never from a client app.',
+  )
   Future<PaystackBulkChargeBatch?> fetchBulkChargeBatch({
     required String batchCodeOrId,
     String? secretKey,
     Duration? timeout,
     bool? enableLogging,
   }) async {
-    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedKey = secretKey ?? _globalConfig?.publicKey;
     final resolvedTimeout =
         timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
     final resolvedLogging =
@@ -698,10 +713,16 @@ class PayWithPayStack {
 
   /// Retrieves the list of individual charges associated with a bulk charge batch.
   ///
+  /// > ⚠️ **Backend use only.** Requires a Paystack secret key.
+  ///
   /// Optional filters:
   /// - [status]: Filter charges by status (`pending`, `success`, `failed`).
   /// - [perPage]: Number of records per page (default 50).
   /// - [page]: Specific page number to retrieve.
+  @Deprecated(
+    'fetchBulkChargeBatchCharges() requires a Paystack secret key and must only be '
+    'called from a secure backend — never from a client app.',
+  )
   Future<List<Map<String, dynamic>>?> fetchBulkChargeBatchCharges({
     required String batchCodeOrId,
     String? status,
@@ -711,7 +732,7 @@ class PayWithPayStack {
     Duration? timeout,
     bool? enableLogging,
   }) async {
-    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedKey = secretKey ?? _globalConfig?.publicKey;
     final resolvedTimeout =
         timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
     final resolvedLogging =
@@ -776,13 +797,19 @@ class PayWithPayStack {
   // ── pauseBulkChargeBatch() ─────────────────────────────────────────────────
 
   /// Pauses processing of an active bulk charge batch.
+  ///
+  /// > ⚠️ **Backend use only.** Requires a Paystack secret key.
+  @Deprecated(
+    'pauseBulkChargeBatch() requires a Paystack secret key and must only be '
+    'called from a secure backend — never from a client app.',
+  )
   Future<bool> pauseBulkChargeBatch({
     required String batchCode,
     String? secretKey,
     Duration? timeout,
     bool? enableLogging,
   }) async {
-    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedKey = secretKey ?? _globalConfig?.publicKey;
     final resolvedTimeout =
         timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
     final resolvedLogging =
@@ -830,13 +857,19 @@ class PayWithPayStack {
   // ── resumeBulkChargeBatch() ────────────────────────────────────────────────
 
   /// Resumes processing of a paused bulk charge batch.
+  ///
+  /// > ⚠️ **Backend use only.** Requires a Paystack secret key.
+  @Deprecated(
+    'resumeBulkChargeBatch() requires a Paystack secret key and must only be '
+    'called from a secure backend — never from a client app.',
+  )
   Future<bool> resumeBulkChargeBatch({
     required String batchCode,
     String? secretKey,
     Duration? timeout,
     bool? enableLogging,
   }) async {
-    final resolvedKey = secretKey ?? _globalConfig?.secretKey;
+    final resolvedKey = secretKey ?? _globalConfig?.publicKey;
     final resolvedTimeout =
         timeout ?? _globalConfig?.timeout ?? const Duration(seconds: 30);
     final resolvedLogging =

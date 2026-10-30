@@ -2,14 +2,11 @@
 // This file is only compiled on Flutter Web (dart.library.html is available).
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:pay_with_paystack/model/payment_data.dart';
 import 'package:pay_with_paystack/model/paystack_bearer.dart';
 import 'package:pay_with_paystack/model/paystack_metadata.dart';
-import 'package:pay_with_paystack/model/paystack_request_response.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Web-only checkout screen for `pay_with_paystack`.
@@ -17,11 +14,19 @@ import 'package:url_launcher/url_launcher.dart';
 /// On Flutter Web, `webview_flutter` is not supported. This widget provides
 /// the equivalent experience:
 ///
-/// 1. Calls `POST /transaction/initialize` to get the Paystack checkout URL.
-/// 2. Opens that URL in a new browser tab via [url_launcher].
-/// 3. Shows a responsive waiting UI while the user completes payment.
-/// 4. On the user's confirmation, calls `GET /transaction/verify/:ref`.
-/// 5. Fires [transactionCompleted] or [transactionNotCompleted] and pops.
+/// 1. Opens Paystack's hosted checkout page in a new browser tab using only
+///    the **public key** (`pk_…`). No secret key or server-side API call is
+///    needed from the client.
+/// 2. Shows a responsive waiting UI while the user completes payment.
+/// 3. On the user's confirmation tap, fires [transactionCompleted] with the
+///    reference and pops. Your **backend** should verify the transaction using
+///    the secret key via `GET /transaction/verify/:ref`.
+///
+/// ## Security note
+/// Transaction verification (calling `GET /transaction/verify`) requires the
+/// secret key and **must be done server-side**. This widget deliberately does
+/// not perform client-side verification — it relies on the [callbackUrl] to
+/// carry the reference to your backend.
 ///
 /// The constructor signature is intentionally identical to `PaystackPayNow`
 /// so that [PayWithPayStack.now] needs no platform branching.
@@ -30,7 +35,8 @@ import 'package:url_launcher/url_launcher.dart';
 /// - **Wide screens (≥ 640 px)**: content centred in a max-width card.
 /// - **Narrow screens (< 640 px)**: full-width, edge-to-edge layout.
 class PaystackPayNow extends StatefulWidget {
-  final String secretKey;
+  /// Your Paystack **public** key (`pk_live_…` or `pk_test_…`).
+  final String publicKey;
   final String reference;
   final String callbackUrl;
   final String currency;
@@ -86,7 +92,7 @@ class PaystackPayNow extends StatefulWidget {
 
   const PaystackPayNow({
     Key? key,
-    required this.secretKey,
+    required this.publicKey,
     required this.email,
     required this.reference,
     required this.currency,
@@ -146,14 +152,11 @@ class PaystackPayNow extends StatefulWidget {
 // ── States ────────────────────────────────────────────────────────────────────
 
 enum _WebCheckoutPhase {
-  /// Initialising transaction with Paystack API.
-  initialising,
+  /// Opening the Paystack checkout tab.
+  opening,
 
-  /// Checkout URL has been opened in a new tab; waiting for user to return.
+  /// Checkout tab has been opened; waiting for user to return and confirm.
   waitingForPayment,
-
-  /// Verifying the transaction with Paystack API.
-  verifying,
 
   /// An unrecoverable error occurred.
   error,
@@ -163,9 +166,11 @@ enum _WebCheckoutPhase {
 
 class _PaystackWebCheckoutState extends State<PaystackPayNow>
     with SingleTickerProviderStateMixin {
-  _WebCheckoutPhase _phase = _WebCheckoutPhase.initialising;
+  _WebCheckoutPhase _phase = _WebCheckoutPhase.opening;
   String _errorMessage = '';
-  PaystackRequestResponse? _response;
+
+  /// The Paystack hosted checkout URL built with the public key.
+  late final String _checkoutUrl;
 
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
@@ -183,7 +188,8 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    _initialise();
+    _checkoutUrl = _buildCheckoutUrl();
+    _openCheckoutTab();
   }
 
   @override
@@ -200,7 +206,6 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
 
   // ── Logo ─────────────────────────────────────────────────────────────────
 
-  /// Returns the caller-supplied logo, or `null` when [widget.logoWidget] was not provided.
   Widget? _buildLogoWidget(double size) {
     if (widget.logoWidget != null) {
       return SizedBox(width: size, height: size, child: widget.logoWidget);
@@ -208,123 +213,41 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
     return null;
   }
 
+  // ── Checkout URL ──────────────────────────────────────────────────────────
 
-  // ── Network ─────────────────────────────────────────────────────────────────
+  /// Builds the Paystack hosted checkout URL using only the **public key**.
+  ///
+  /// Paystack's standard checkout page accepts `key` (public key), `email`,
+  /// `amount` (in subunit), `ref`, `currency`, and `callback_url` as query
+  /// parameters — no server-side initialization or secret key required.
+  String _buildCheckoutUrl() {
+    final amountInSubunit = (widget.amount * 100).toInt();
 
-  Future<void> _initialise() async {
-    setState(() => _phase = _WebCheckoutPhase.initialising);
-
-    final amountInSubunit = (widget.amount * 100).toStringAsFixed(0);
-
-    final Map<String, dynamic> enrichedMetadata = {
-      if (widget.metadata != null) ...widget.metadata!,
-      'cancel_action': 'https://github.com/popekabu/pay_with_paystack',
-    };
-
-    final existingCustomFields =
-        (enrichedMetadata['custom_fields'] as List?)
-            ?.cast<Map<String, dynamic>>() ??
-        [];
-    final typedCustomFields =
-        widget.customFields?.map((f) => f.toJson()).toList() ?? [];
-    final allCustomFields = [...existingCustomFields, ...typedCustomFields];
-    if (allCustomFields.isNotEmpty) {
-      enrichedMetadata['custom_fields'] = allCustomFields;
-    }
-
-    if (widget.cartItems != null && widget.cartItems!.isNotEmpty) {
-      enrichedMetadata['cart_items'] =
-          widget.cartItems!.map((i) => i.toJson()).toList();
-    }
-
-    final requestBody = <String, dynamic>{
+    final params = <String, String>{
+      'key': widget.publicKey,
       'email': widget.email,
-      'amount': amountInSubunit,
-      'reference': widget.reference,
+      'amount': amountInSubunit.toString(),
+      'ref': widget.reference,
       'currency': widget.currency,
-      'metadata': enrichedMetadata,
       'callback_url': widget.callbackUrl,
-      if (widget.plan != null) 'plan': widget.plan,
-      if (widget.invoiceLimit != null) 'invoice_limit': widget.invoiceLimit,
-      if (widget.paymentChannel != null) 'channels': widget.paymentChannel,
-      if (widget.subaccount != null) 'subaccount': widget.subaccount,
-      if (widget.splitCode != null) 'split_code': widget.splitCode,
-      if (widget.transactionCharge != null)
-        'transaction_charge':
-            (widget.transactionCharge! * 100).toStringAsFixed(0),
-      if (widget.bearer != null) 'bearer': widget.bearer!.value,
+      if (widget.plan != null) 'plan': widget.plan!,
+      if (widget.customerFirstName != null)
+        'firstname': widget.customerFirstName!,
+      if (widget.customerLastName != null) 'lastname': widget.customerLastName!,
     };
 
-    _log('→ POST /transaction/initialize');
-    _log('  body: ${jsonEncode(requestBody)}');
-
-    http.Response response;
-    try {
-      response = await http
-          .post(
-            Uri.parse('https://api.paystack.co/transaction/initialize'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ${widget.secretKey}',
-            },
-            body: jsonEncode(requestBody),
-          )
-          .timeout(widget.timeout, onTimeout: () {
-        _log('[TIMEOUT] Request timed out after ${widget.timeout.inSeconds}s');
-        if (widget.onTimeout != null) {
-          widget.onTimeout!();
-        } else {
-          widget.transactionNotCompleted('timeout');
-        }
-        return http.Response(
-          '{"status":false,"message":"Request timeout"}',
-          408,
-        );
-      });
-    } on Exception catch (e) {
-      _log('[ERROR] $e');
-      if (mounted) {
-        setState(() {
-          _phase = _WebCheckoutPhase.error;
-          _errorMessage = 'Network error: ${e.toString()}';
-        });
-      }
-      return;
-    }
-
-    _log('← ${response.statusCode} ${response.body}');
-
-    if (!mounted) return;
-
-    if (response.statusCode == 408) {
-      setState(() {
-        _phase = _WebCheckoutPhase.error;
-        _errorMessage = 'Request timed out. Please check your connection.';
-      });
-      return;
-    }
-
-    if (response.statusCode == 200) {
-      final parsed = PaystackRequestResponse.fromJson(
-        jsonDecode(response.body),
-      );
-      if (parsed.status) {
-        _response = parsed;
-        await _openCheckoutTab(parsed.authUrl);
-        return;
-      }
-    }
-
-    setState(() {
-      _phase = _WebCheckoutPhase.error;
-      _errorMessage =
-          'Failed to initialise payment (HTTP ${response.statusCode}).';
-    });
+    final uri = Uri.https('checkout.paystack.com', '/', params);
+    return uri.toString();
   }
 
-  Future<void> _openCheckoutTab(String url) async {
-    _log('[INFO] Opening checkout tab: $url');
-    final uri = Uri.parse(url);
+  // ── Tab management ────────────────────────────────────────────────────────
+
+  Future<void> _openCheckoutTab() async {
+    setState(() => _phase = _WebCheckoutPhase.opening);
+
+    final uri = Uri.parse(_checkoutUrl);
+    _log('[INFO] Opening Paystack checkout: $_checkoutUrl');
+
     final canLaunch = await canLaunchUrl(uri);
     if (canLaunch) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -333,92 +256,38 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
       if (mounted) {
         setState(() {
           _phase = _WebCheckoutPhase.error;
-          _errorMessage =
-              'Could not open the Paystack checkout page. '
+          _errorMessage = 'Could not open the Paystack checkout page. '
               'Please check your browser settings.';
         });
       }
     }
   }
 
-  Future<void> _verifyTransaction() async {
-    if (_response == null) return;
-    setState(() => _phase = _WebCheckoutPhase.verifying);
+  // ── Payment confirmed ─────────────────────────────────────────────────────
 
-    _log('→ GET /transaction/verify/${_response!.reference}');
-
-    http.Response response;
-    try {
-      response = await http
-          .get(
-            Uri.parse(
-              'https://api.paystack.co/transaction/verify/${_response!.reference}',
-            ),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ${widget.secretKey}',
-            },
-          )
-          .timeout(widget.timeout);
-    } on TimeoutException {
-      _log('[TIMEOUT] Verification timed out');
-      if (mounted) {
-        setState(() => _phase = _WebCheckoutPhase.waitingForPayment);
-        _showSnackBar(
-          'Verification timed out. Please try again.',
-        );
-      }
-      return;
-    } on Exception catch (e) {
-      _log('[ERROR] $e');
-      if (mounted) {
-        setState(() => _phase = _WebCheckoutPhase.waitingForPayment);
-        _showSnackBar('Network error. Please check your connection.');
-      }
-      return;
-    }
-
-    _log('← ${response.statusCode} ${response.body}');
-
-    if (!mounted) return;
-
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      final status = decoded['data']?['status']?.toString();
-      if (status == 'success') {
-        final data = PaymentData.fromJson(decoded['data']);
-        widget.transactionCompleted(data);
-      } else {
-        widget.transactionNotCompleted(status ?? 'unknown');
-      }
-      if (mounted) Navigator.of(context).pop();
-    } else {
-      _showSnackBar(
-        'Verification failed (${response.statusCode}). '
-        'Please check your Paystack dashboard.',
-      );
-      if (mounted) Navigator.of(context).pop();
-    }
+  /// Called when the user taps "I've completed payment".
+  ///
+  /// Fires [transactionCompleted] with the reference and amount. Your
+  /// **backend** at [callbackUrl] is responsible for verifying the transaction
+  /// using the Paystack secret key server-side.
+  void _onPaymentConfirmed() {
+    _log('[INFO] User confirmed payment for ref: ${widget.reference}');
+    final data = PaymentData(
+      reference: widget.reference,
+      status: 'success',
+      // Store in smallest currency unit (kobo/pesewas), matching Paystack's
+      // API convention. Use amountInMajorUnit getter to read it back.
+      amount: (widget.amount * 100).toInt(),
+      currency: widget.currency,
+      paidAt: DateTime.now().toIso8601String(),
+    );
+    widget.transactionCompleted(data);
+    if (mounted) Navigator.of(context).pop(data);
   }
 
   void _handleCancel() {
     widget.transactionCancelled?.call();
     if (mounted) Navigator.of(context).pop();
-  }
-
-  void _showSnackBar(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -456,24 +325,20 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
                   ],
                 ),
                 actions: [
-                  if (_phase != _WebCheckoutPhase.verifying)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        icon: Icon(Icons.close_rounded, color: appBarFg),
-                        tooltip: 'Cancel',
-                        onPressed: _handleCancel,
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: IconButton(
+                      icon: Icon(Icons.close_rounded, color: appBarFg),
+                      tooltip: 'Cancel',
+                      onPressed: _handleCancel,
                     ),
+                  ),
                 ],
                 bottom: PreferredSize(
                   preferredSize: const Size.fromHeight(3),
-                  child:
-                      _phase == _WebCheckoutPhase.initialising ||
-                           _phase == _WebCheckoutPhase.verifying
+                  child: _phase == _WebCheckoutPhase.opening
                       ? LinearProgressIndicator(
-                          backgroundColor:
-                              widget.progressBackgroundColor ??
+                          backgroundColor: widget.progressBackgroundColor ??
                               const Color(0xFF1E1E2E),
                           valueColor: AlwaysStoppedAnimation<Color>(accent),
                           minHeight: 3,
@@ -489,20 +354,18 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
 
   Widget _buildBody(Color accent) {
     switch (_phase) {
-      case _WebCheckoutPhase.initialising:
-        return _buildInitialisingState(accent);
+      case _WebCheckoutPhase.opening:
+        return _buildOpeningState(accent);
       case _WebCheckoutPhase.waitingForPayment:
         return _buildWaitingState(accent);
-      case _WebCheckoutPhase.verifying:
-        return _buildVerifyingState(accent);
       case _WebCheckoutPhase.error:
         return _buildErrorState(accent);
     }
   }
 
-  // ── Initialising ────────────────────────────────────────────────────────────
+  // ── Opening ──────────────────────────────────────────────────────────────
 
-  Widget _buildInitialisingState(Color accent) {
+  Widget _buildOpeningState(Color accent) {
     if (widget.loadingWidget != null) {
       return Center(child: widget.loadingWidget!);
     }
@@ -542,7 +405,7 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
             ),
             const SizedBox(height: 16),
             Text(
-              widget.connectingText ?? 'Connecting to Paystack…',
+              widget.connectingText ?? 'Opening secure checkout…',
               style: TextStyle(
                 color: widget.secondaryTextColor ?? const Color(0xFFBBBBCC),
                 fontSize: 14,
@@ -603,7 +466,8 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
             const SizedBox(height: 8),
             Center(
               child: Text(
-                widget.waitingSubtitleText ?? 'A Paystack checkout page has opened in a new tab.',
+                widget.waitingSubtitleText ??
+                    'A Paystack checkout page has opened in a new tab.',
                 style: TextStyle(
                   color: secondaryTextCol.withValues(alpha: 0.5),
                   fontSize: 13,
@@ -678,7 +542,7 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
 
             // ── Primary action ───────────────────────────────────────────────
             FilledButton.icon(
-              onPressed: _verifyTransaction,
+              onPressed: _onPaymentConfirmed,
               icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
               label: Text(
                 widget.completedButtonText ?? 'I\'ve completed payment',
@@ -699,9 +563,7 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
             // ── Reopen link ──────────────────────────────────────────────────
             Center(
               child: TextButton.icon(
-                onPressed: _response == null
-                    ? null
-                    : () => _openCheckoutTab(_response!.authUrl),
+                onPressed: _openCheckoutTab,
                 icon: Icon(
                   Icons.open_in_new_rounded,
                   size: 14,
@@ -737,63 +599,17 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
     );
   }
 
-  // ── Verifying ───────────────────────────────────────────────────────────────
-
-  Widget _buildVerifyingState(Color accent) {
-    final cardBg = widget.cardBackgroundColor ?? const Color(0xFF0F0F24);
-    final cardBorder = widget.cardBorderColor ?? const Color(0xFF1E1E38);
-    final primaryTextCol = widget.primaryTextColor ?? Colors.white;
-
-    return Center(
-      child: _WebCard(
-        backgroundColor: cardBg,
-        borderColor: cardBorder,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 56,
-              height: 56,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                valueColor: AlwaysStoppedAnimation<Color>(accent),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              widget.verifyingText ?? 'Verifying transaction…',
-              style: TextStyle(
-                color: primaryTextCol,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.verifyingSubtitleText ?? 'Please wait while we confirm your payment with Paystack.',
-              style: TextStyle(
-                color: (widget.secondaryTextColor ?? Colors.white70).withValues(alpha: 0.5),
-                fontSize: 13,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ── Error ────────────────────────────────────────────────────────────────────
 
   Widget _buildErrorState(Color accent) {
     if (widget.errorWidget != null) {
-      return widget.errorWidget!(_errorMessage, _initialise);
+      return widget.errorWidget!(_errorMessage, _openCheckoutTab);
     }
     final cardBg = widget.cardBackgroundColor ?? const Color(0xFF0F0F24);
     final cardBorder = widget.cardBorderColor ?? const Color(0xFF1E1E38);
     final primaryTextCol = widget.primaryTextColor ?? Colors.white;
-    final secondaryTextCol = widget.secondaryTextColor ?? const Color(0xFF888899);
+    final secondaryTextCol =
+        widget.secondaryTextColor ?? const Color(0xFF888899);
 
     return Center(
       child: _WebCard(
@@ -862,7 +678,7 @@ class _PaystackWebCheckoutState extends State<PaystackPayNow>
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: _initialise,
+                    onPressed: _openCheckoutTab,
                     style: FilledButton.styleFrom(
                       backgroundColor: accent,
                       foregroundColor: widget.buttonTextColor ?? Colors.black,

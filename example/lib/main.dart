@@ -4,9 +4,9 @@ import 'package:pay_with_paystack/pay_with_paystack.dart';
 
 void main() {
   // ── Set global defaults once ──────────────────────────────────────────────
-  // secretKey / currency / callbackUrl are now optional on individual calls.
+  // publicKey / currency / callbackUrl are now optional on individual calls.
   PayWithPayStack.configure(PaystackConfig(
-    secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX',
+    publicKey: 'pk_test_XXXXXXXXXXXXXXXXXXXXX',
     currency: PaystackCurrency.ghs.value, // typed enum — no typos!
     callbackUrl: 'https://your-callback.com',
     enableLogging: kDebugMode, // only logs in debug builds
@@ -253,17 +253,17 @@ class PaymentPage extends StatelessWidget {
     );
   }
 
-  // ── Example 6: Charge authorization (no WebView) ──────────────────────────
+  // ── Example 6: Charge authorization (backend proxy demonstration) ────────
   Future<void> _chargeAuthorization(BuildContext context) async {
-    // In a real app, save authorizationCode from a previous PaymentData:
-    // final code = previousPaymentData.authorization?.authorizationCode;
+    // In production, invoke your own backend endpoint instead of calling this directly.
     const savedAuthCode = 'AUTH_xxxxxxxxxx'; // from a previous payment
 
+    // ignore: deprecated_member_use
     await PayWithPayStack().chargeAuthorization(
+      secretKey: 'sk_test_demo_backend_only',
       authorizationCode: savedAuthCode,
       customerEmail: 'user@example.com',
       amount: 30.00,
-      // secretKey and currency from global config — no need to repeat!
       reference: PayWithPayStack().generateUuidV4(),
       transactionCompleted: (data) {
         debugPrint('[OK] Silent charge succeeded: ${data.reference}');

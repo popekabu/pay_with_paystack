@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:pay_with_paystack/pay_with_paystack.dart';
 
 void main() {
+  // Optional: configure once at app startup so publicKey / currency /
+  // callbackUrl don't need to be repeated on every call.
+  PayWithPayStack.configure(PaystackConfig(
+    publicKey: 'pk_test_XXXXXXXXXXXXXXXXXXXXX', // ← public key only (pk_…)
+    currency: 'GHS',
+    callbackUrl: 'https://your-backend.com/verify',
+  ));
+
   runApp(const MyApp());
 }
 
@@ -33,7 +41,7 @@ class PaymentPage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Basic payment
+            // Basic payment (uses global config for publicKey/currency/callbackUrl)
             ElevatedButton(
               onPressed: () => _basicPayment(context),
               child: const Text('Basic Payment (GHS 50)'),
@@ -59,17 +67,18 @@ class PaymentPage extends StatelessWidget {
   }
 
   // ── Example 1: Basic payment ────────────────────────────────────────────────
+  // publicKey / currency / callbackUrl come from the global config above.
   Future<void> _basicPayment(BuildContext context) async {
     await PayWithPayStack().now(
       context: context,
-      secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX',
       customerEmail: 'user@example.com',
       reference: PayWithPayStack().generateUuidV4(),
-      currency: 'GHS',
       amount: 50.00,
-      callbackUrl: 'https://your-callback.com',
       transactionCompleted: (PaymentData data) {
         debugPrint('[OK] Paid: ${data.amountInMajorUnit} ${data.currency}');
+        // IMPORTANT: verify this transaction server-side using:
+        //   GET https://api.paystack.co/transaction/verify/${data.reference}
+        // with your SECRET key — never do this in the Flutter app.
       },
       transactionNotCompleted: (String reason) {
         debugPrint('[FAIL] Not completed: $reason');
@@ -81,12 +90,12 @@ class PaymentPage extends StatelessWidget {
   Future<void> _fullFeaturedPayment(BuildContext context) async {
     await PayWithPayStack().now(
       context: context,
-      secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX',
+      publicKey: 'pk_test_XXXXXXXXXXXXXXXXXXXXX', // can override global config
       customerEmail: 'daniel@example.com',
       reference: PayWithPayStack().generateUuidV4(),
       currency: 'GHS',
       amount: 120.00,
-      callbackUrl: 'https://your-callback.com',
+      callbackUrl: 'https://your-backend.com/verify',
 
       // Restrict payment channels
       channels: [
@@ -127,13 +136,11 @@ class PaymentPage extends StatelessWidget {
       appBarTextColor: Colors.white,
 
       transactionCompleted: (PaymentData data) {
-        debugPrint('[OK] Payment successful!');
+        debugPrint('[OK] Payment callback received!');
         debugPrint('   Reference : ${data.reference}');
         debugPrint('   Amount    : ${data.amountInMajorUnit} ${data.currency}');
-        debugPrint('   Channel   : ${data.channel}');
-        debugPrint('   Customer  : ${data.customer?.fullName}');
-        debugPrint('   Fees      : ${data.feesInMajorUnit} ${data.currency}');
-        debugPrint('   Reusable  : ${data.authorization?.reusable}');
+        // Verify server-side — your backend at callbackUrl receives the ref
+        // and calls GET /transaction/verify/:ref with the secret key.
       },
 
       transactionNotCompleted: (String reason) {
@@ -146,12 +153,9 @@ class PaymentPage extends StatelessWidget {
   Future<void> _splitPayment(BuildContext context) async {
     await PayWithPayStack().now(
       context: context,
-      secretKey: 'sk_test_XXXXXXXXXXXXXXXXXXXXX',
       customerEmail: 'user@example.com',
       reference: PayWithPayStack().generateUuidV4(),
-      currency: 'GHS',
       amount: 200.00,
-      callbackUrl: 'https://your-callback.com',
 
       // Route to a subaccount; main account keeps GHS 20.00 flat fee
       subaccount: 'ACCT_xxxxxxxxxx',
@@ -159,7 +163,7 @@ class PaymentPage extends StatelessWidget {
       bearer: PaystackBearer.account, // main account bears Paystack fees
 
       transactionCompleted: (PaymentData data) {
-        debugPrint('[OK] Split payment done: ${data.reference}');
+        debugPrint('[OK] Split payment callback for: ${data.reference}');
       },
 
       transactionNotCompleted: (String reason) {

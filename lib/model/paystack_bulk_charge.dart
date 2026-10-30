@@ -56,7 +56,8 @@ class PaystackBulkChargeItem {
     }
 
     return PaystackBulkChargeItem(
-      authorizationCode: json['authorization'] ?? json['authorization_code'] ?? '',
+      authorizationCode:
+          json['authorization'] ?? json['authorization_code'] ?? '',
       amount: parsedAmount,
       reference: json['reference']?.toString() ?? '',
       email: json['email']?.toString(),
@@ -134,7 +135,8 @@ class PaystackBulkChargeBatch {
   /// Constructs a [PaystackBulkChargeBatch] from Paystack's response JSON map.
   factory PaystackBulkChargeBatch.fromJson(Map<String, dynamic> json) {
     return PaystackBulkChargeBatch(
-      batchCode: json['batch_code']?.toString() ?? json['batchCode']?.toString(),
+      batchCode:
+          json['batch_code']?.toString() ?? json['batchCode']?.toString(),
       reference: json['reference']?.toString(),
       status: json['status']?.toString(),
       totalCharges: json['total_charges'] is int
@@ -152,8 +154,10 @@ class PaystackBulkChargeBatch {
       integration: json['integration'] is int
           ? json['integration'] as int
           : int.tryParse(json['integration']?.toString() ?? ''),
-      createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString(),
-      updatedAt: json['updatedAt']?.toString() ?? json['updated_at']?.toString(),
+      createdAt:
+          json['createdAt']?.toString() ?? json['created_at']?.toString(),
+      updatedAt:
+          json['updatedAt']?.toString() ?? json['updated_at']?.toString(),
       rawJson: json,
     );
   }

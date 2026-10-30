@@ -1,19 +1,19 @@
 /// App-level default configuration for `pay_with_paystack`.
 ///
 /// Set once at app startup using [PayWithPayStack.configure] to avoid
-/// repeating your secret key, currency and callback URL on every call.
+/// repeating your public key, currency and callback URL on every call.
 ///
 /// ## Example
 /// ```dart
 /// // In main() or your DI setup:
 /// PayWithPayStack.configure(PaystackConfig(
-///   secretKey: 'sk_live_xxxxxxxxxxxxxxxxxxxx',
+///   publicKey: 'pk_live_xxxxxxxxxxxxxxxxxxxx',
 ///   currency: 'GHS',
 ///   callbackUrl: 'https://my-app.com/payment/callback',
 ///   enableLogging: false,
 /// ));
 ///
-/// // Later — secretKey / currency / callbackUrl can be omitted:
+/// // Later — publicKey / currency / callbackUrl can be omitted:
 /// await PayWithPayStack().now(
 ///   context: context,
 ///   customerEmail: 'user@example.com',
@@ -24,8 +24,11 @@
 /// );
 /// ```
 class PaystackConfig {
-  /// Your Paystack secret key (`sk_live_…` or `sk_test_…`).
-  final String secretKey;
+  /// Your Paystack **public** key (`pk_live_…` or `pk_test_…`).
+  ///
+  /// This is the only key that should ever be embedded in a client app.
+  /// Never use your secret key (`sk_…`) here.
+  final String publicKey;
 
   /// ISO 4217 currency code (e.g. `'GHS'`, `'NGN'`).
   ///
@@ -33,6 +36,9 @@ class PaystackConfig {
   final String? currency;
 
   /// Callback URL that Paystack redirects to after checkout.
+  ///
+  /// Your **backend** at this URL should verify the transaction using the
+  /// Paystack secret key server-side (e.g. via `GET /transaction/verify/:ref`).
   final String? callbackUrl;
 
   /// When `true`, request/response details are printed to the console
@@ -45,7 +51,7 @@ class PaystackConfig {
   final Duration timeout;
 
   const PaystackConfig({
-    required this.secretKey,
+    required this.publicKey,
     this.currency,
     this.callbackUrl,
     this.enableLogging = false,
@@ -54,7 +60,7 @@ class PaystackConfig {
 
   @override
   String toString() => 'PaystackConfig('
-      'key: ${secretKey.substring(0, 8)}…, '
+      'key: ${publicKey.substring(0, 8)}…, '
       'currency: $currency, '
       'logging: $enableLogging, '
       'timeout: ${timeout.inSeconds}s'

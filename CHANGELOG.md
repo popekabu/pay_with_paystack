@@ -1,3 +1,64 @@
+## 2.0.0 — Security Fix: Public Key Only ⚠️ Breaking Change
+
+### Security
+
+This release addresses [Issue #23](https://github.com/popekabu/pay_with_paystack/issues/23):
+the package no longer requires or uses the Paystack **secret key** (`sk_…`) in client code.
+
+Embedding a secret key in a mobile or web app is a serious security vulnerability — it can be
+extracted via APK/IPA decompilation or a debugger and grants full API access (refunds, transfers,
+subaccount management, etc.).
+
+### Breaking Changes
+
+- **`PaystackConfig.secretKey` → `PaystackConfig.publicKey`**  
+  Update your `PayWithPayStack.configure()` call:
+  ```dart
+  // Before (insecure — DO NOT USE):
+  PayWithPayStack.configure(PaystackConfig(secretKey: 'sk_live_…'));
+
+  // After (v2.0.0):
+  PayWithPayStack.configure(PaystackConfig(publicKey: 'pk_live_…'));
+  ```
+
+- **`now()` parameter `secretKey` → `publicKey`**  
+  ```dart
+  // Before:
+  PayWithPayStack().now(secretKey: 'sk_live_…', …);
+
+  // After:
+  PayWithPayStack().now(publicKey: 'pk_live_…', …);
+  ```
+
+### How the checkout flow changed
+
+| Step | Before (v1.x) | After (v2.0.0) |
+|------|--------------|----------------|
+| Initialize transaction | `POST /transaction/initialize` with secret key (client-side 🚨) | Paystack Popup JS loaded inline — **no server call from client** |
+| Show checkout | Load `authorization_url` from API response | Paystack Popup JS iframe opens directly with public key |
+| Verify transaction | `GET /transaction/verify/:ref` with secret key (client-side 🚨) | **Removed.** Your backend at `callbackUrl` verifies with the secret key server-side ✅ |
+
+### Transaction verification (what you must do)
+
+Your backend endpoint at `callbackUrl` receives the `reference` query parameter after checkout.
+Call `GET https://api.paystack.co/transaction/verify/:reference` from your server with the
+secret key to confirm the payment before fulfilling any order.
+
+### Deprecated (backend use only)
+
+The following methods require a secret key and are **deprecated** for client-app use.
+They are marked `@Deprecated` and will emit a warning at compile time.
+Move these calls to a secure backend:
+
+- `chargeAuthorization()` — requires secret key for `POST /transaction/charge_authorization`
+- `bulkCharge()` — requires secret key for `POST /bulkcharge`
+- `fetchBulkChargeBatch()` — requires secret key
+- `fetchBulkChargeBatchCharges()` — requires secret key
+- `pauseBulkChargeBatch()` — requires secret key
+- `resumeBulkChargeBatch()` — requires secret key
+
+---
+
 ## 1.7.0
 
 ### New Features

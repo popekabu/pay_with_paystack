@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use, deprecated_member_use_from_same_package
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pay_with_paystack/pay_with_paystack.dart';
 
@@ -483,7 +484,8 @@ void main() {
   });
 
   // ── PayWithPayStack Bulk Charge assertions ──────────────────────────────────
-  group('PayWithPayStack bulkCharge validation', () {
+  group('PayWithPayStack bulkCharge validation (deprecated — backend use only)',
+      () {
     setUp(() {
       PayWithPayStack.clearConfig();
     });
@@ -535,4 +537,3 @@ void main() {
     });
   });
 }
-
